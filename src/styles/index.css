@@ -1,0 +1,189 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+/* ==========================================================================
+   ChambeaYA! Design Tokens
+   Brand palette is fixed; derived shades keep WCAG AA contrast where text
+   sits on brand surfaces (primary-600+ with white text >= 4.5:1).
+   ========================================================================== */
+@theme {
+  /* Typography */
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --text-display: 2rem;
+  --text-display--line-height: 2.5rem;
+  --text-display--letter-spacing: -0.025em;
+  --text-display--font-weight: 700;
+
+  --text-title: 1.5rem;
+  --text-title--line-height: 2rem;
+  --text-title--letter-spacing: -0.02em;
+  --text-title--font-weight: 700;
+
+  --text-heading: 1.125rem;
+  --text-heading--line-height: 1.625rem;
+  --text-heading--letter-spacing: -0.01em;
+  --text-heading--font-weight: 600;
+
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--font-weight: 500;
+
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.125rem;
+
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+  --text-micro--font-weight: 600;
+
+  /* Brand */
+  --color-primary-50: #e8f8f7;
+  --color-primary-100: #c8eeec;
+  --color-primary-200: #94dcd8;
+  --color-primary-300: #57c6c1;
+  --color-primary-400: #22b0ac;
+  --color-primary-500: #039f9c;
+  --color-primary-600: #037f7d;
+  --color-primary-700: #036b72;
+  --color-primary-800: #03576a;
+  --color-primary-900: #043f4f;
+
+  --color-secondary-100: #ccf5ef;
+  --color-secondary-500: #03ccad;
+
+  --color-accent-50: #fff4e5;
+  --color-accent-100: #ffe3bf;
+  --color-accent-500: #ff8a00;
+  --color-accent-700: #b35f00;
+
+  /* Neutrals (tinted toward Text Dark #030F31) */
+  --color-ink: #030f31;
+  --color-ink-muted: #4a5875;
+  --color-ink-subtle: #6b7891;
+  --color-surface: #f4f8fb;
+  --color-surface-muted: #eaf0f5;
+  --color-border: #dde5ee;
+  --color-border-strong: #c3cfdc;
+
+  /* Feedback */
+  --color-success-50: #e9f9f1;
+  --color-success-500: #12b76a;
+  --color-success-700: #067647;
+  --color-warning-50: #fff7e6;
+  --color-warning-700: #a15c07;
+  --color-danger-50: #fef1f0;
+  --color-danger-500: #e5484d;
+  --color-danger-600: #d92d20;
+  --color-danger-700: #b42318;
+
+  /* Radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+
+  /* Elevation (ink-tinted, low opacity) */
+  --shadow-xs: 0 1px 2px rgb(3 15 49 / 0.05);
+  --shadow-sm: 0 1px 3px rgb(3 15 49 / 0.06), 0 1px 2px rgb(3 15 49 / 0.04);
+  --shadow-md: 0 6px 16px -4px rgb(3 15 49 / 0.08), 0 2px 6px -2px rgb(3 15 49 / 0.05);
+  --shadow-lg: 0 16px 32px -12px rgb(3 15 49 / 0.14), 0 4px 10px -4px rgb(3 15 49 / 0.06);
+  --shadow-brand: 0 10px 24px -10px rgb(3 127 125 / 0.55);
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-in: fade-in 0.4s var(--ease-out-soft) both;
+  --animate-fade-up: fade-up 0.5s var(--ease-out-soft) both;
+  --animate-scale-in: scale-in 0.7s var(--ease-out-soft) both;
+  --animate-pulse-ring: pulse-ring 2.4s var(--ease-out-soft) infinite;
+  --animate-progress: progress 1.6s var(--ease-out-soft) both;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.88); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes pulse-ring {
+    0% { opacity: 0.55; transform: scale(0.6); }
+    100% { opacity: 0; transform: scale(1.6); }
+  }
+  @keyframes progress {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+}
+
+@utility bg-brand-gradient {
+  background-image: linear-gradient(135deg, #03ccad 0%, #039f9c 50%, #03576a 100%);
+}
+
+@utility container-app {
+  width: 100%;
+  margin-inline: auto;
+  max-width: 72rem;
+  padding-inline: 1rem;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+  @media (width >= 64rem) {
+    padding-inline: 2rem;
+  }
+}
+
+@utility pb-safe-nav {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-surface font-sans text-body text-ink antialiased;
+    min-height: 100dvh;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-primary-100);
+    color: var(--color-ink);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
