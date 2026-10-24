@@ -23,8 +23,11 @@ export interface RegisterPayload {
   email: string
   phone: string
   password: string
-  /** Chosen before sign-up; validated again by the database trigger. */
-  accountType: AccountType
+  /**
+   * Optional. The current UI flow picks it AFTER sign-up (onboarding screen ->
+   * `set_account_type` RPC). If sent, it is validated again by the database trigger.
+   */
+  accountType?: AccountType
 }
 
 /**
