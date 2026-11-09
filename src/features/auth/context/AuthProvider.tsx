@@ -77,14 +77,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [loadProfile],
   )
 
+  const refreshProfile = useCallback(async () => {
+    const session = await authService.getSession()
+    return loadProfile(session?.user ?? null)
+  }, [loadProfile])
+
   const logout = useCallback(async () => {
     await authService.logout()
     setUser(null)
   }, [])
 
   const value = useMemo(
-    () => ({ user, isLoading, isAuthenticated: user !== null, login, register, selectAccountType, logout }),
-    [user, isLoading, login, register, selectAccountType, logout],
+    () => ({ user, isLoading, isAuthenticated: user !== null, login, register, selectAccountType, refreshProfile, logout }),
+    [user, isLoading, login, register, selectAccountType, refreshProfile, logout],
   ) as AuthContextValue
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

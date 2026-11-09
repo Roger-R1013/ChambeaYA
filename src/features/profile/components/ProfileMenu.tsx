@@ -1,4 +1,4 @@
-import { ChevronRight, LogOut, PenLine, Settings, type LucideIcon } from 'lucide-react'
+import { BriefcaseBusiness, ChevronRight, LogOut, PenLine, Settings, ShieldCheck, type LucideIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
@@ -50,9 +50,24 @@ function ProfileMenuRow({ label, description, icon: Icon, onClick, tone = 'defau
   )
 }
 
-export function ProfileMenu({ onLogout }: { onLogout: () => void }) {
+export interface ProfileMenuProps {
+  onLogout: () => void
+  onEditProfile: () => void
+  /** Only provided for workers. */
+  onEditProfessional?: () => void
+  /** Only provided for workers. */
+  onVerification?: () => void
+}
+
+export function ProfileMenu({ onLogout, onEditProfile, onEditProfessional, onVerification }: ProfileMenuProps) {
   const items: MenuItem[] = [
-    { id: 'edit', label: 'Editar perfil', description: 'Nombre, foto y datos de contacto', icon: PenLine, comingSoon: true },
+    { id: 'edit', label: 'Editar perfil', description: 'Foto, nombre y datos de contacto', icon: PenLine, onClick: onEditProfile },
+    ...(onEditProfessional
+      ? [{ id: 'professional', label: 'Perfil profesional', description: 'Oficio, zona, precios y certificados', icon: BriefcaseBusiness, onClick: onEditProfessional }]
+      : []),
+    ...(onVerification
+      ? [{ id: 'verification', label: 'Verificación de identidad', description: 'Documento y selfie para revisión', icon: ShieldCheck, onClick: onVerification }]
+      : []),
     { id: 'settings', label: 'Configuración', description: 'Notificaciones, privacidad y cuenta', icon: Settings, comingSoon: true },
     { id: 'logout', label: 'Cerrar sesión', description: 'Salir de tu cuenta en este dispositivo', icon: LogOut, tone: 'danger', onClick: onLogout },
   ]

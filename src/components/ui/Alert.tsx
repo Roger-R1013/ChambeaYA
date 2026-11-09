@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
-import { CircleAlert, Info, type LucideIcon } from 'lucide-react'
+import { CircleAlert, CircleCheck, Info, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
-type AlertTone = 'error' | 'info'
+type AlertTone = 'error' | 'info' | 'success'
 
 const TONES: Record<AlertTone, { box: string; icon: LucideIcon }> = {
   error: { box: 'border-danger-500/25 bg-danger-50 text-danger-700', icon: CircleAlert },
   info: { box: 'border-primary-200 bg-primary-50 text-primary-800', icon: Info },
+  success: { box: 'border-success-500/25 bg-success-50 text-success-700', icon: CircleCheck },
 }
 
 export interface AlertProps {

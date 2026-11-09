@@ -8,6 +8,9 @@ export const ROUTES = {
   search: '/app/search',
   activity: '/app/activity',
   profile: '/app/profile',
+  profileEdit: '/app/profile/edit',
+  workerProfessional: '/app/profile/professional',
+  workerVerification: '/app/profile/verification',
   workerDetail: '/app/workers/:workerId',
 } as const
 

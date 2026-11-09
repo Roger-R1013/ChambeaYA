@@ -18,6 +18,16 @@ export function RequireAccountType() {
   return <Outlet />
 }
 
+/**
+ * Worker-only screens. UX guard only: the database (RLS + triggers) is what
+ * actually prevents clients from creating or editing worker data.
+ */
+export function RequireWorker() {
+  const { user } = useAuth()
+  if (user?.accountType !== 'worker') return <Navigate to={ROUTES.profile} replace />
+  return <Outlet />
+}
+
 /** Public-only screens (welcome/login/register) redirect signed-in users. */
 export function GuestOnly() {
   const { user } = useAuth()
