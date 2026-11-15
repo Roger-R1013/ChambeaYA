@@ -1,3 +1,4 @@
+import type { Category } from './category'
 import type { WorkerAvailability } from './worker'
 
 /** Mirrors `public.verification_status`. Only the review process can change it. */
@@ -6,12 +7,8 @@ export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'reject
 /** Mirrors `public.pricing_mode` (migration 0004). */
 export type PricingMode = 'per_hour' | 'per_job' | 'quote'
 
-/** Category as stored in `public.categories` (ids are not limited to the mock union). */
-export interface CatalogCategory {
-  id: string
-  name: string
-  description: string
-}
+/** Category as stored in `public.categories` (single shared type). */
+export type CatalogCategory = Category
 
 /** Work zone from `public.service_zones`. Workers pick a zone, never an exact address. */
 export interface ServiceZone {

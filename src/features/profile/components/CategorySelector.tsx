@@ -1,7 +1,6 @@
-import { Briefcase, Check } from 'lucide-react'
-import { CATEGORY_ICONS } from '@/features/categories/categoryIcons'
+import { Check } from 'lucide-react'
+import { getCategoryIcon } from '@/features/categories/categoryIcons'
 import { cn } from '@/lib/cn'
-import type { CategoryId } from '@/types/category'
 import type { CatalogCategory } from '@/types/profile'
 
 export interface CategorySelectorProps {
@@ -40,7 +39,7 @@ export function CategorySelector({ id, categories, selected, max, onChange, erro
         {categories.map((category) => {
           const checked = selected.includes(category.id)
           const blocked = !checked && atLimit
-          const Icon = CATEGORY_ICONS[category.id as CategoryId] ?? Briefcase
+          const Icon = getCategoryIcon(category.id)
           const inputId = `${id}-${category.id}`
 
           return (

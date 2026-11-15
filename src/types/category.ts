@@ -1,3 +1,4 @@
+/** Ids of the seeded catalogue (migration 0003). Used only to pick icons. */
 export type CategoryId =
   | 'electricity'
   | 'plumbing'
@@ -8,9 +9,9 @@ export type CategoryId =
   | 'carpentry'
   | 'painting'
 
+/** Category as stored in `public.categories` (new ids may be added by admins). */
 export interface Category {
-  id: CategoryId
+  id: string
   name: string
   description: string
-  workersCount: number
 }

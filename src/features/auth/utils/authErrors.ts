@@ -35,6 +35,8 @@ const DATABASE_MESSAGES: Record<string, string> = {
   certificate_limit_reached: 'Puedes registrar como máximo 10 certificados.',
   identity_documents_incomplete: 'Sube el anverso y el reverso de tu documento y una selfie antes de enviar la solicitud.',
   verification_not_editable: 'Tu solicitud ya está en revisión o fue aprobada. No puedes modificar los documentos.',
+  client_only: 'La búsqueda de profesionales está disponible para cuentas de cliente.',
+  invalid_location: 'La ubicación indicada no es válida.',
   // Supabase Storage
   'Bucket not found': 'El almacenamiento de archivos aún no está configurado. Aplica las migraciones de supabase/migrations.',
   'new row violates row-level security policy': 'No tienes permiso para subir este archivo.',
@@ -55,6 +57,7 @@ const CONSTRAINT_MESSAGES: Record<string, string> = {
   worker_certificates_title_length: 'El nombre del certificado debe tener entre 3 y 120 caracteres.',
   worker_certificates_issuer_length: 'La institución no puede superar los 120 caracteres.',
   worker_certificates_issued_past: 'La fecha de emisión no puede ser futura.',
+  worker_locations_service_area: 'La ubicación debe estar dentro del área metropolitana de Santa Cruz de la Sierra.',
 }
 
 function constraintMessage(message: string | undefined): string | undefined {

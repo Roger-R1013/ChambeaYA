@@ -1,4 +1,5 @@
 import type { PricingMode } from '@/types/profile'
+import { formatMoney } from '@/utils/format'
 
 interface PricingMeta {
   label: string
@@ -20,6 +21,5 @@ export const PRICING_OPTIONS: PricingMode[] = ['per_hour', 'per_job', 'quote']
 export function formatReferencePrice(mode: PricingMode | null, rate: number | null): string | null {
   if (!mode) return null
   if (mode === 'quote' || rate === null) return PRICING_META[mode].label
-  const amount = new Intl.NumberFormat('es-BO', { maximumFractionDigits: 2 }).format(rate)
-  return `Desde Bs ${amount} ${PRICING_META[mode].unit}`
+  return `Desde ${formatMoney({ amount: rate, currency: 'BOB' })} ${PRICING_META[mode].unit}`
 }

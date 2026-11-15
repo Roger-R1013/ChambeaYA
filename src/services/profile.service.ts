@@ -1,5 +1,6 @@
 import { toDataError } from '@/features/auth/utils/authErrors'
 import { requireSupabase } from '@/lib/supabase'
+import { categoriesService } from '@/services/categories.service'
 import type {
   CatalogCategory,
   PersonalInfoInput,
@@ -128,15 +129,9 @@ export const profileService = {
     return ((data as string[] | null) ?? []).slice().sort()
   },
 
-  async listActiveCategories(): Promise<CatalogCategory[]> {
-    const client = requireSupabase()
-    const { data, error } = await client
-      .from('categories')
-      .select('id, name, description')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-    if (error) throw toDataError(error, 'No se pudieron cargar las categorías.')
-    return (data ?? []) as CatalogCategory[]
+  /** Same catalogue as the rest of the app (single query in categoriesService). */
+  listActiveCategories(): Promise<CatalogCategory[]> {
+    return categoriesService.getAll()
   },
 
   async listServiceZones(): Promise<ServiceZone[]> {

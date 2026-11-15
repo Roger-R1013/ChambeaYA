@@ -4,13 +4,14 @@ const CURRENCY_SYMBOL: Record<Money['currency'], string> = {
   BOB: 'Bs',
 }
 
+/** "Bs 80" / "Bs 1.250,50" (Bolivian format). */
 export function formatMoney({ amount, currency }: Money): string {
-  const value = new Intl.NumberFormat('es-BO', { maximumFractionDigits: 0 }).format(amount)
+  const value = new Intl.NumberFormat('es-BO', { maximumFractionDigits: 2 }).format(amount)
   return `${CURRENCY_SYMBOL[currency]} ${value}`
 }
 
 export function formatDistance(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)} m`
+  if (km < 1) return `${Math.max(100, Math.round((km * 1000) / 100) * 100)} m`
   return `${km.toFixed(1)} km`
 }
 

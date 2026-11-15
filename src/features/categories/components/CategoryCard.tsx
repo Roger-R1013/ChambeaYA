@@ -1,6 +1,6 @@
 import { cn } from '@/lib/cn'
 import type { Category } from '@/types/category'
-import { CATEGORY_ICONS } from '../categoryIcons'
+import { getCategoryIcon } from '../categoryIcons'
 
 export interface CategoryCardProps {
   category: Category
@@ -9,7 +9,7 @@ export interface CategoryCardProps {
 }
 
 export function CategoryCard({ category, onSelect, className }: CategoryCardProps) {
-  const Icon = CATEGORY_ICONS[category.id]
+  const Icon = getCategoryIcon(category.id)
 
   return (
     <button
@@ -33,7 +33,7 @@ export function CategoryCard({ category, onSelect, className }: CategoryCardProp
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="truncate text-caption font-semibold text-ink md:text-label">{category.name}</span>
-        <span className="hidden text-caption text-ink-subtle md:block">{category.workersCount} disponibles</span>
+        <span className="hidden truncate text-caption text-ink-subtle md:block">{category.description}</span>
       </span>
     </button>
   )
