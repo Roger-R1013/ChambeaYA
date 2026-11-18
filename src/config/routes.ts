@@ -9,9 +9,11 @@ export const ROUTES = {
   activity: '/app/activity',
   profile: '/app/profile',
   profileEdit: '/app/profile/edit',
+  settings: '/app/settings',
   workerProfessional: '/app/profile/professional',
   workerVerification: '/app/profile/verification',
   workerDetail: '/app/workers/:workerId',
+  admin: '/admin',
 } as const
 
 export function buildWorkerDetailPath(workerId: string): string {

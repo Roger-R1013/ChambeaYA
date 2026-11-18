@@ -25,6 +25,8 @@ export interface AuthService {
   login(credentials: LoginCredentials): Promise<SupabaseUser>
   register(payload: RegisterPayload): Promise<SignUpOutcome>
   resendConfirmation(email: string): Promise<void>
+  changePassword(input: { currentPassword: string; password: string; nonce: string }): Promise<'changed' | 'code_required'>
+  requestPasswordChangeCode(): Promise<void>
   setAccountType(accountType: AccountType): Promise<void>
   logout(): Promise<void>
 }
@@ -60,6 +62,7 @@ function mapProfile(row: ProfileRow, authUser: SupabaseUser): User {
     firstName: row.first_name,
     lastName: row.last_name,
     email: authUser.email ?? '',
+    emailConfirmedAt: authUser.email_confirmed_at ?? null,
     phone: row.phone ?? '',
     accountType: row.account_type,
     avatarUrl: row.avatar_url ?? undefined,
@@ -160,6 +163,28 @@ const supabaseAuthService: AuthService = {
     } catch (error) {
       throw toAuthError(error)
     }
+  },
+
+  async changePassword({ currentPassword, password, nonce }) {
+    const { error } = await requireSupabase().auth.updateUser({
+      current_password: currentPassword,
+      password,
+      ...(nonce ? { nonce } : {}),
+    })
+    if (!error) return 'changed'
+    if (error.code === 'reauthentication_needed' || error.code === 'reauth_nonce_missing') return 'code_required'
+    if (error.code === 'invalid_credentials' || error.code === 'current_password_mismatch') {
+      throw new Error('La contraseña actual no es correcta.')
+    }
+    if (error.code === 'otp_expired') {
+      throw new Error('El código ha vencido. Solicita uno nuevo.')
+    }
+    throw toAuthError(error)
+  },
+
+  async requestPasswordChangeCode() {
+    const { error } = await requireSupabase().auth.reauthenticate()
+    if (error) throw toAuthError(error)
   },
 
   async setAccountType(accountType) {

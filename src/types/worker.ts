@@ -40,7 +40,7 @@ export interface Worker {
  */
 export interface NearbyWorker extends Worker {
   location: GeoPoint | null
-  /** From the viewer's location to the approximate point. Null without origin. */
+  /** From the search reference to the approximate point. Null without origin. */
   distanceKm: number | null
 }
 

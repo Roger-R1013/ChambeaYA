@@ -10,9 +10,10 @@ import { AVAILABILITY_META } from '../availability'
 export interface WorkerCardProps {
   worker: NearbyWorker
   onViewProfile: (worker: NearbyWorker) => void
+  onShowOnMap?: (worker: NearbyWorker) => void
 }
 
-export function WorkerCard({ worker, onViewProfile }: WorkerCardProps) {
+export function WorkerCard({ worker, onViewProfile, onShowOnMap }: WorkerCardProps) {
   const fullName = getFullName(worker)
   const availability = AVAILABILITY_META[worker.availability]
   const titleId = `worker-${worker.id}-name`
@@ -43,7 +44,12 @@ export function WorkerCard({ worker, onViewProfile }: WorkerCardProps) {
               {(worker.distanceKm !== null || worker.zoneName) && (
                 <span className="inline-flex items-center gap-1 text-caption text-ink-muted">
                   <MapPin className="size-3.5 text-primary-600" strokeWidth={2} aria-hidden />
-                  {worker.distanceKm === null ? worker.zoneName : formatDistance(worker.distanceKm)}
+                  {worker.distanceKm === null ? worker.zoneName : (
+                    <>
+                      <span className="sr-only">Distancia aproximada: </span>
+                      {formatDistance(worker.distanceKm)}
+                    </>
+                  )}
                 </span>
               )}
             </div>
@@ -58,16 +64,22 @@ export function WorkerCard({ worker, onViewProfile }: WorkerCardProps) {
             <span className="text-heading leading-tight text-ink">{formatMoney(worker.startingPrice)}</span>
           </p>
         )}
-        <Button
-          variant="secondary"
-          size="sm"
-          className="ml-auto"
-          rightIcon={ChevronRight}
-          onClick={() => onViewProfile(worker)}
-          aria-label={`Ver perfil de ${fullName}`}
-        >
-          Ver perfil
-        </Button>
+        <div className="ml-auto flex flex-wrap justify-end gap-2">
+          {onShowOnMap && worker.location && (
+            <Button variant="secondary" size="sm" onClick={() => onShowOnMap(worker)} aria-label={`Ver a ${fullName} en el mapa`}>
+              Ver en el mapa
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            rightIcon={ChevronRight}
+            onClick={() => onViewProfile(worker)}
+            aria-label={`Ver perfil de ${fullName}`}
+          >
+            Ver perfil
+          </Button>
+        </div>
       </div>
     </Card>
   )

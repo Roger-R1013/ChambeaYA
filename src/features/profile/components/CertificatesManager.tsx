@@ -6,20 +6,18 @@ import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
 import { Input } from '@/components/ui/Input'
 import { Skeleton } from '@/components/ui/LoadingState'
+import { Select } from '@/components/ui/Select'
 import { MAX_CERTIFICATES, verificationService } from '@/services/verification.service'
-import type { VerificationStatus, WorkerCertificate } from '@/types/profile'
+import type { ProfessionalDocumentKind, WorkerCertificate } from '@/types/profile'
 import { DOCUMENT_MIME_TYPES, validateUploadFile } from '@/utils/files'
 import { useCertificates } from '../hooks/useVerificationData'
 import { openPrivateFile } from '../openPrivateFile'
+import { DOCUMENT_LABELS, DOCUMENT_REVIEW_STATUS, documentKindLabel } from '../professionalDocuments'
 
-const REVIEW_LABEL: Record<VerificationStatus, { label: string; tone: 'neutral' | 'warning' | 'success' | 'accent' }> = {
-  unverified: { label: 'Sin revisar', tone: 'neutral' },
-  pending: { label: 'En revisión', tone: 'warning' },
-  verified: { label: 'Aprobado', tone: 'success' },
-  rejected: { label: 'No aprobado', tone: 'accent' },
-}
+const DOCUMENT_KINDS = Object.keys(DOCUMENT_LABELS) as ProfessionalDocumentKind[]
 
 interface CertificateErrors {
+  documentKind?: string
   title?: string
   issuer?: string
   issuedOn?: string
@@ -41,9 +39,9 @@ function validateCertificate(title: string, issuer: string, issuedOn: string, fi
   const errors: CertificateErrors = {}
   const cleanTitle = title.trim()
   if (cleanTitle.length < 3 || cleanTitle.length > 120) errors.title = 'El nombre debe tener entre 3 y 120 caracteres.'
-  if (issuer.trim().length > 120) errors.issuer = 'La institución no puede superar los 120 caracteres.'
+  if (issuer.trim().length > 120) errors.issuer = 'El nombre de quien emite el documento no puede superar los 120 caracteres.'
   if (issuedOn && issuedOn > todayIso()) errors.issuedOn = 'La fecha de emisión no puede ser futura.'
-  if (!file) errors.file = 'Adjunta el certificado en PDF o imagen.'
+  if (!file) errors.file = 'Adjunta el documento en PDF o imagen.'
   else {
     const invalid = validateUploadFile(file, DOCUMENT_MIME_TYPES)
     if (invalid) errors.file = invalid
@@ -53,6 +51,7 @@ function validateCertificate(title: string, issuer: string, issuedOn: string, fi
 
 function CertificateForm({ userId, onAdded }: { userId: string; onAdded: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [documentKind, setDocumentKind] = useState<ProfessionalDocumentKind | ''>('')
   const [title, setTitle] = useState('')
   const [issuer, setIssuer] = useState('')
   const [issuedOn, setIssuedOn] = useState('')
@@ -74,12 +73,14 @@ function CertificateForm({ userId, onAdded }: { userId: string; onAdded: () => v
     event.preventDefault()
     setSubmitError(null)
     const nextErrors = validateCertificate(title, issuer, issuedOn, file)
+    if (!documentKind) nextErrors.documentKind = 'Selecciona el tipo de documento.'
     setErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0 || !file) return
+    if (Object.keys(nextErrors).length > 0 || !file || !documentKind) return
 
     setIsSubmitting(true)
     try {
-      await verificationService.addCertificate(userId, { title, issuer, issuedOn, file })
+      await verificationService.addCertificate(userId, { documentKind, title, issuer, issuedOn, file })
+      setDocumentKind('')
       setTitle('')
       setIssuer('')
       setIssuedOn('')
@@ -87,7 +88,7 @@ function CertificateForm({ userId, onAdded }: { userId: string; onAdded: () => v
       if (fileRef.current) fileRef.current.value = ''
       onAdded()
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'No se pudo registrar el certificado.')
+      setSubmitError(error instanceof Error ? error.message : 'No se pudo registrar el documento.')
     } finally {
       setIsSubmitting(false)
     }
@@ -98,11 +99,27 @@ function CertificateForm({ userId, onAdded }: { userId: string; onAdded: () => v
       onSubmit={handleSubmit}
       noValidate
       className="flex flex-col gap-4 rounded-lg border border-border/70 bg-surface-muted/40 p-4"
-      aria-label="Agregar certificado"
+      aria-label="Agregar certificado o recomendación"
     >
       {submitError && <Alert>{submitError}</Alert>}
 
-      <FormField id="certificate-title" label="Nombre del certificado" required error={errors.title}>
+      <FormField id="certificate-kind" label="Tipo de documento" required error={errors.documentKind}>
+        {({ invalid, ...control }) => (
+          <Select
+            {...control}
+            invalid={invalid}
+            value={documentKind}
+            onChange={(event) => setDocumentKind(
+              DOCUMENT_KINDS.find((kind) => kind === event.target.value) ?? '',
+            )}
+          >
+            <option value="">Selecciona un tipo</option>
+            {DOCUMENT_KINDS.map((kind) => <option key={kind} value={kind}>{DOCUMENT_LABELS[kind]}</option>)}
+          </Select>
+        )}
+      </FormField>
+
+      <FormField id="certificate-title" label="Nombre o descripción del documento" required error={errors.title}>
         {({ invalid, ...control }) => (
           <Input
             {...control}
@@ -110,14 +127,13 @@ function CertificateForm({ userId, onAdded }: { userId: string; onAdded: () => v
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             maxLength={120}
-            placeholder="Ej. Técnico electricista"
             leftIcon={Award}
           />
         )}
       </FormField>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField id="certificate-issuer" label="Institución" error={errors.issuer} hint="Opcional">
+        <FormField id="certificate-issuer" label="Empresa, institución o persona emisora" error={errors.issuer} hint="Opcional">
           {({ invalid, ...control }) => (
             <Input
               {...control}
@@ -125,7 +141,6 @@ function CertificateForm({ userId, onAdded }: { userId: string; onAdded: () => v
               value={issuer}
               onChange={(event) => setIssuer(event.target.value)}
               maxLength={120}
-              placeholder="Ej. INFOCAL"
               leftIcon={Building2}
             />
           )}
@@ -173,7 +188,7 @@ function CertificateForm({ userId, onAdded }: { userId: string; onAdded: () => v
       </FormField>
 
       <Button type="submit" leftIcon={Plus} isLoading={isSubmitting} loadingText="Subiendo..." className="self-start">
-        Agregar certificado
+        Agregar certificado o recomendación
       </Button>
     </form>
   )
@@ -183,7 +198,7 @@ function CertificateItem({ certificate, onDeleted }: { certificate: WorkerCertif
   const [busy, setBusy] = useState<'open' | 'delete' | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const review = REVIEW_LABEL[certificate.reviewStatus]
+  const review = DOCUMENT_REVIEW_STATUS[certificate.reviewStatus]
   const isPdf = certificate.storagePath.endsWith('.pdf')
 
   async function handleOpen() {
@@ -205,7 +220,7 @@ function CertificateItem({ certificate, onDeleted }: { certificate: WorkerCertif
       await verificationService.deleteCertificate(certificate)
       onDeleted()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo eliminar el certificado.')
+      setError(cause instanceof Error ? cause.message : 'No se pudo eliminar el documento.')
       setBusy(null)
       setConfirming(false)
     }
@@ -220,14 +235,17 @@ function CertificateItem({ certificate, onDeleted }: { certificate: WorkerCertif
         <div className="min-w-0 flex-1">
           <p className="truncate text-label font-semibold text-ink">{certificate.title}</p>
           <p className="truncate text-caption text-ink-muted">
-            {[certificate.issuer, certificate.issuedOn ? formatDate(certificate.issuedOn) : null].filter(Boolean).join(' · ') ||
-              'Sin institución ni fecha'}
+            {[documentKindLabel(certificate.documentKind), certificate.issuer, certificate.issuedOn ? formatDate(certificate.issuedOn) : null]
+              .filter(Boolean).join(' · ')}
           </p>
         </div>
         <Badge tone={review.tone}>{review.label}</Badge>
       </div>
 
       {error && <Alert>{error}</Alert>}
+      {certificate.reviewStatus === 'verified' && (
+        <p className="text-caption text-ink-muted">Revisado como respaldo de formación o experiencia.</p>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" size="sm" leftIcon={Eye} onClick={handleOpen} isLoading={busy === 'open'} disabled={busy !== null}>
@@ -264,10 +282,10 @@ export function CertificatesManager({ userId }: { userId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 id="certificates-title" className="text-heading text-ink">
-            Certificados profesionales
+            Certificados y recomendaciones laborales
           </h2>
           <p className="text-caption text-ink-subtle">
-            Respaldan tu experiencia. Se guardan de forma privada y el equipo de ChambeaYA! los revisa manualmente.
+            Puedes respaldar tu formación o experiencia con certificados, constancias laborales o cartas de recomendación. Estos documentos son opcionales y no necesitas un título técnico para ofrecer tus servicios.
           </p>
         </div>
         {state.status === 'success' && (
@@ -278,7 +296,7 @@ export function CertificatesManager({ userId }: { userId: string }) {
       </div>
 
       {state.status === 'loading' && (
-        <div className="flex flex-col gap-3" aria-busy="true" aria-label="Cargando certificados">
+        <div className="flex flex-col gap-3" aria-busy="true" aria-label="Cargando documentos profesionales">
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-20 w-full" />
         </div>
@@ -297,7 +315,7 @@ export function CertificatesManager({ userId }: { userId: string }) {
         <>
           {certificates.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border-strong p-4 text-center text-caption text-ink-muted">
-              Aún no registraste certificados.
+              Aún no registraste documentos profesionales.
             </p>
           ) : (
             <ul className="flex flex-col gap-3">
@@ -308,7 +326,7 @@ export function CertificatesManager({ userId }: { userId: string }) {
           )}
 
           {reachedLimit ? (
-            <Alert tone="info">Alcanzaste el máximo de {MAX_CERTIFICATES} certificados. Elimina uno para agregar otro.</Alert>
+            <Alert tone="info">Alcanzaste el máximo de {MAX_CERTIFICATES} documentos. Elimina uno para agregar otro.</Alert>
           ) : showForm ? (
             <CertificateForm
               userId={userId}
@@ -319,7 +337,7 @@ export function CertificatesManager({ userId }: { userId: string }) {
             />
           ) : (
             <Button variant="outline" leftIcon={Plus} onClick={() => setShowForm(true)} className="self-start">
-              Agregar certificado
+              Agregar certificado o recomendación
             </Button>
           )}
         </>

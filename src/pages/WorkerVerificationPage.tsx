@@ -43,8 +43,8 @@ export function WorkerVerificationPage() {
     <div className="container-app pt-6 md:pt-8">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
         <PageHeader
-          title="Verificación y certificados"
-          description="Solicita la verificación de tu identidad y respalda tu experiencia con certificados. Nada de esto se muestra públicamente."
+          title="Identidad y documentos profesionales"
+          description="La verificación de identidad y la revisión de tus respaldos laborales son procesos separados. Los archivos se guardan de forma privada."
           backTo={ROUTES.profile}
         />
         <Card as="section" padding="lg">

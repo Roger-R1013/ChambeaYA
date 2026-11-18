@@ -52,9 +52,18 @@ export interface WorkerProfileInput {
   baseRateBob: number | null
 }
 
+/** Mirrors `public.professional_document_kind` (migration 0008). */
+export type ProfessionalDocumentKind =
+  | 'technical_certificate'
+  | 'training_certificate'
+  | 'employment_statement'
+  | 'employer_recommendation'
+  | 'company_employment_certificate'
+
 /** Row of `public.worker_certificates` (file lives in a PRIVATE bucket). */
 export interface WorkerCertificate {
   id: string
+  documentKind: ProfessionalDocumentKind | null
   title: string
   issuer: string | null
   issuedOn: string | null
@@ -64,6 +73,7 @@ export interface WorkerCertificate {
 }
 
 export interface CertificateInput {
+  documentKind: ProfessionalDocumentKind
   title: string
   issuer: string
   /** ISO date (YYYY-MM-DD) or empty. */

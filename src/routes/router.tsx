@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router'
+import { LoadingState } from '@/components/ui/LoadingState'
 import { ROUTES } from '@/config/routes'
 import { AppLayout } from '@/layouts/AppLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
@@ -11,11 +12,9 @@ import { LoginPage } from '@/pages/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { RegisterPage } from '@/pages/RegisterPage'
-import { SearchPage } from '@/pages/SearchPage'
 import { SplashPage } from '@/pages/SplashPage'
 import { WelcomePage } from '@/pages/WelcomePage'
 import { WorkerDetailPage } from '@/pages/WorkerDetailPage'
-import { WorkerProfessionalPage } from '@/pages/WorkerProfessionalPage'
 import { WorkerVerificationPage } from '@/pages/WorkerVerificationPage'
 import { GuestOnly, RequireAccountType, RequireAuth, RequireWorker } from './guards'
 
@@ -26,10 +25,12 @@ import { GuestOnly, RequireAccountType, RequireAuth, RequireWorker } from './gua
  *   Auth         -> /onboarding/account-type
  *   Auth + type  -> /app/* (Home, Search, Activity, Profile, Edit profile, Worker detail)
  *   Worker only  -> /app/profile/professional, /app/profile/verification
+ *   Admin only   -> /admin
  */
 export const router = createBrowserRouter([
   {
     element: <RootLayout />,
+    hydrateFallbackElement: <LoadingState label="Cargando página..." />,
     children: [
       { path: ROUTES.splash, element: <SplashPage /> },
       {
@@ -49,6 +50,15 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           {
+            element: <AppLayout />,
+            children: [
+              {
+                path: ROUTES.admin,
+                lazy: { Component: async () => (await import('@/pages/AdminPage')).AdminPage },
+              },
+            ],
+          },
+          {
             element: <AuthLayout />,
             children: [{ path: ROUTES.accountType, element: <AccountTypePage /> }],
           },
@@ -60,14 +70,24 @@ export const router = createBrowserRouter([
                 element: <AppLayout />,
                 children: [
                   { index: true, element: <HomePage /> },
-                  { path: ROUTES.search, element: <SearchPage /> },
+                  {
+                    path: ROUTES.search,
+                    lazy: { Component: async () => (await import('@/pages/SearchPage')).SearchPage },
+                  },
                   { path: ROUTES.activity, element: <ActivityPage /> },
                   { path: ROUTES.profile, element: <ProfilePage /> },
                   { path: ROUTES.profileEdit, element: <EditProfilePage /> },
                   {
+                    path: ROUTES.settings,
+                    lazy: { Component: async () => (await import('@/pages/SettingsPage')).SettingsPage },
+                  },
+                  {
                     element: <RequireWorker />,
                     children: [
-                      { path: ROUTES.workerProfessional, element: <WorkerProfessionalPage /> },
+                      {
+                        path: ROUTES.workerProfessional,
+                        lazy: { Component: async () => (await import('@/pages/WorkerProfessionalPage')).WorkerProfessionalPage },
+                      },
                       { path: ROUTES.workerVerification, element: <WorkerVerificationPage /> },
                     ],
                   },

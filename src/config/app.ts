@@ -9,7 +9,7 @@ export const APP_CONFIG = {
 } as const
 
 /**
- * Reference location used until the Geolocation API is integrated.
+ * Default map center and search reference when viewer coordinates are unavailable.
  * Santa Cruz de la Sierra, Bolivia.
  */
 export const DEFAULT_LOCATION: { label: string; point: GeoPoint } = {

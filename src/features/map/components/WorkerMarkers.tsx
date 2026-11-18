@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Marker } from 'react-leaflet'
 import type { NearbyWorker } from '@/types/worker'
 import { getFullName } from '@/utils/format'
@@ -9,23 +10,33 @@ export interface WorkerMarkersProps {
   onSelect: (worker: NearbyWorker) => void
 }
 
+const WorkerMarker = memo(function WorkerMarker({ worker, selected, onSelect }: {
+  worker: NearbyWorker
+  selected: boolean
+  onSelect: WorkerMarkersProps['onSelect']
+}) {
+  if (!worker.location) return null
+  const label = `${getFullName(worker)}, ${worker.profession}`
+
+  return (
+    <Marker
+      position={[worker.location.lat, worker.location.lng]}
+      icon={workerMarkerIcon(worker, selected)}
+      title={label}
+      alt={label}
+      zIndexOffset={selected ? 1000 : 0}
+      eventHandlers={{ click: () => onSelect(worker) }}
+    />
+  )
+})
+
 /** One marker per worker that shares an approximate location. */
 export function WorkerMarkers({ workers, selectedId, onSelect }: WorkerMarkersProps) {
   return (
     <>
-      {workers.map((worker) =>
-        worker.location ? (
-          <Marker
-            key={worker.id}
-            position={[worker.location.lat, worker.location.lng]}
-            icon={workerMarkerIcon(worker, worker.id === selectedId)}
-            title={`${getFullName(worker)}, ${worker.profession}`}
-            alt={`${getFullName(worker)}, ${worker.profession}`}
-            zIndexOffset={worker.id === selectedId ? 1000 : 0}
-            eventHandlers={{ click: () => onSelect(worker) }}
-          />
-        ) : null,
-      )}
+      {workers.map((worker) => (
+        <WorkerMarker key={worker.id} worker={worker} selected={worker.id === selectedId} onSelect={onSelect} />
+      ))}
     </>
   )
 }

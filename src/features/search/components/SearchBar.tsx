@@ -8,16 +8,22 @@ import { cn } from '@/lib/cn'
 export interface SearchBarProps {
   id: string
   defaultValue?: string
+  maxLength?: number
   className?: string
+  onSearch?: (query: string) => void
 }
 
-export function SearchBar({ id, defaultValue = '', className }: SearchBarProps) {
+export function SearchBar({ id, defaultValue = '', maxLength, className, onSearch }: SearchBarProps) {
   const navigate = useNavigate()
   const [query, setQuery] = useState(defaultValue)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmed = query.trim()
+    if (onSearch) {
+      onSearch(trimmed)
+      return
+    }
     navigate(trimmed ? `${ROUTES.search}?q=${encodeURIComponent(trimmed)}` : ROUTES.search)
   }
 
@@ -30,6 +36,7 @@ export function SearchBar({ id, defaultValue = '', className }: SearchBarProps) 
         id={id}
         type="search"
         value={query}
+        maxLength={maxLength}
         onChange={(event) => setQuery(event.target.value)}
         placeholder="¿Qué servicio necesitas?"
         leftIcon={Search}

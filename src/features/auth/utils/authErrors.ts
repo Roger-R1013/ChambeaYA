@@ -1,4 +1,4 @@
-import { isAuthApiError, isAuthError, isAuthRetryableFetchError } from '@supabase/supabase-js'
+import { isAuthApiError, isAuthError, isAuthRetryableFetchError, isAuthSessionMissingError } from '@supabase/supabase-js'
 
 /** Spanish, user-facing messages for Supabase Auth error codes. */
 const AUTH_MESSAGES: Record<string, string> = {
@@ -16,9 +16,15 @@ const AUTH_MESSAGES: Record<string, string> = {
   user_banned: 'Esta cuenta está suspendida. Contacta a soporte.',
   session_expired: 'Tu sesión expiró. Inicia sesión nuevamente.',
   session_not_found: 'Tu sesión expiró. Inicia sesión nuevamente.',
+  bad_jwt: 'Tu sesión expiró. Inicia sesión nuevamente.',
+  no_authorization: 'Tu sesión expiró. Inicia sesión nuevamente.',
   refresh_token_not_found: 'Tu sesión expiró. Inicia sesión nuevamente.',
   refresh_token_already_used: 'Tu sesión expiró. Inicia sesión nuevamente.',
   otp_expired: 'El enlace de confirmación expiró o ya fue utilizado. Solicita uno nuevo.',
+  current_password_required: 'Ingresa tu contraseña actual.',
+  same_password: 'Elige una contraseña distinta a la actual.',
+  reauthentication_not_valid: 'El código no es válido o ha vencido. Revísalo o solicita uno nuevo.',
+  insufficient_aal: 'Necesitas una sesión con la verificación adicional de tu cuenta completada.',
   validation_failed: 'Revisa los datos ingresados.',
 }
 
@@ -37,6 +43,12 @@ const DATABASE_MESSAGES: Record<string, string> = {
   verification_not_editable: 'Tu solicitud ya está en revisión o fue aprobada. No puedes modificar los documentos.',
   client_only: 'La búsqueda de profesionales está disponible para cuentas de cliente.',
   invalid_location: 'La ubicación indicada no es válida.',
+  admin_required: 'Se requieren permisos administrativos.',
+  review_self_forbidden: 'No puedes revisar documentos de tu propia cuenta.',
+  review_not_pending: 'La solicitud ya cambió o fue resuelta. Actualiza la bandeja.',
+  invalid_review_note: 'Ingresa una justificación válida de hasta 500 caracteres.',
+  review_file_unavailable: 'El archivo ya no está disponible para aprobarlo.',
+  identity_review_incomplete: 'Faltan archivos de identidad. Actualiza la bandeja antes de resolver la solicitud.',
   // Supabase Storage
   'Bucket not found': 'El almacenamiento de archivos aún no está configurado. Aplica las migraciones de supabase/migrations.',
   'new row violates row-level security policy': 'No tienes permiso para subir este archivo.',
@@ -55,7 +67,7 @@ const CONSTRAINT_MESSAGES: Record<string, string> = {
   worker_profiles_base_rate_range: 'El precio orientativo debe estar entre Bs 1 y Bs 100 000.',
   worker_profiles_rate_requires_priced_mode: 'El precio orientativo solo se indica con tarifa por hora o por trabajo.',
   worker_certificates_title_length: 'El nombre del certificado debe tener entre 3 y 120 caracteres.',
-  worker_certificates_issuer_length: 'La institución no puede superar los 120 caracteres.',
+  worker_certificates_issuer_length: 'El nombre de quien emite el documento no puede superar los 120 caracteres.',
   worker_certificates_issued_past: 'La fecha de emisión no puede ser futura.',
   worker_locations_service_area: 'La ubicación debe estar dentro del área metropolitana de Santa Cruz de la Sierra.',
 }
@@ -76,6 +88,7 @@ function isNetworkFailure(error: unknown): boolean {
 /** Converts any Supabase/network error into an Error with a Spanish message. */
 export function toAuthError(error: unknown): Error {
   if (isAuthRetryableFetchError(error) || isNetworkFailure(error)) return new Error(NETWORK_MESSAGE)
+  if (isAuthSessionMissingError(error)) return new Error(AUTH_MESSAGES.session_expired)
   if (isAuthApiError(error) || isAuthError(error)) {
     const byCode = error.code ? AUTH_MESSAGES[error.code] : undefined
     if (byCode) return new Error(byCode)

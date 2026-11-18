@@ -1,5 +1,4 @@
 import { BriefcaseBusiness, ChevronRight, LogOut, PenLine, Settings, ShieldCheck, type LucideIcon } from 'lucide-react'
-import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { cn } from '@/lib/cn'
 
@@ -8,24 +7,20 @@ interface MenuItem {
   label: string
   description: string
   icon: LucideIcon
-  onClick?: () => void
+  onClick: () => void
   tone?: 'default' | 'danger'
-  /** Feature not built yet; rendered disabled with a "Próximamente" badge. */
-  comingSoon?: boolean
 }
 
-function ProfileMenuRow({ label, description, icon: Icon, onClick, tone = 'default', comingSoon }: MenuItem) {
+function ProfileMenuRow({ label, description, icon: Icon, onClick, tone = 'default' }: MenuItem) {
   const isDanger = tone === 'danger'
 
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={comingSoon}
-      aria-disabled={comingSoon || undefined}
       className={cn(
         'flex w-full items-center gap-3.5 px-5 py-3.5 text-left transition-colors duration-200',
-        'focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed',
+        'focus-visible:outline-offset-[-2px]',
         isDanger ? 'hover:bg-danger-50' : 'enabled:hover:bg-surface',
       )}
     >
@@ -41,11 +36,7 @@ function ProfileMenuRow({ label, description, icon: Icon, onClick, tone = 'defau
         <span className={cn('text-body font-medium', isDanger ? 'text-danger-700' : 'text-ink')}>{label}</span>
         <span className="truncate text-caption text-ink-subtle">{description}</span>
       </span>
-      {comingSoon ? (
-        <Badge>Próximamente</Badge>
-      ) : (
-        !isDanger && <ChevronRight className="size-5 text-ink-subtle" strokeWidth={2} aria-hidden />
-      )}
+      {!isDanger && <ChevronRight className="size-5 text-ink-subtle" strokeWidth={2} aria-hidden />}
     </button>
   )
 }
@@ -53,22 +44,27 @@ function ProfileMenuRow({ label, description, icon: Icon, onClick, tone = 'defau
 export interface ProfileMenuProps {
   onLogout: () => void
   onEditProfile: () => void
+  onSettings: () => void
   /** Only provided for workers. */
   onEditProfessional?: () => void
   /** Only provided for workers. */
   onVerification?: () => void
+  onAdministration?: () => void
 }
 
-export function ProfileMenu({ onLogout, onEditProfile, onEditProfessional, onVerification }: ProfileMenuProps) {
+export function ProfileMenu({ onLogout, onEditProfile, onSettings, onEditProfessional, onVerification, onAdministration }: ProfileMenuProps) {
   const items: MenuItem[] = [
     { id: 'edit', label: 'Editar perfil', description: 'Foto, nombre y datos de contacto', icon: PenLine, onClick: onEditProfile },
     ...(onEditProfessional
-      ? [{ id: 'professional', label: 'Perfil profesional', description: 'Oficio, zona, precios y certificados', icon: BriefcaseBusiness, onClick: onEditProfessional }]
+      ? [{ id: 'professional', label: 'Perfil profesional', description: 'Oficio, zona y precios', icon: BriefcaseBusiness, onClick: onEditProfessional }]
       : []),
     ...(onVerification
-      ? [{ id: 'verification', label: 'Verificación de identidad', description: 'Documento y selfie para revisión', icon: ShieldCheck, onClick: onVerification }]
+      ? [{ id: 'verification', label: 'Identidad y documentos', description: 'Verificación de identidad y respaldos laborales', icon: ShieldCheck, onClick: onVerification }]
       : []),
-    { id: 'settings', label: 'Configuración', description: 'Notificaciones, privacidad y cuenta', icon: Settings, comingSoon: true },
+    ...(onAdministration
+      ? [{ id: 'administration', label: 'Administración', description: 'Bandejas de revisión y trabajadores', icon: ShieldCheck, onClick: onAdministration }]
+      : []),
+    { id: 'settings', label: 'Configuración', description: 'Cuenta, seguridad, privacidad y notificaciones', icon: Settings, onClick: onSettings },
     { id: 'logout', label: 'Cerrar sesión', description: 'Salir de tu cuenta en este dispositivo', icon: LogOut, tone: 'danger', onClick: onLogout },
   ]
 

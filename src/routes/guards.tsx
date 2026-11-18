@@ -1,12 +1,14 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
+import { LoadingState } from '@/components/ui/LoadingState'
 import { ROUTES } from '@/config/routes'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { resolvePostAuthPath } from '@/features/auth/utils/redirect'
 
 /** Only for authenticated users; preserves the requested path for after login. */
 export function RequireAuth() {
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
   const location = useLocation()
+  if (isLoading) return <LoadingState label="Cargando sesión..." />
   if (!user) return <Navigate to={ROUTES.login} replace state={{ from: location.pathname }} />
   return <Outlet />
 }
@@ -31,6 +33,8 @@ export function RequireWorker() {
 /** Public-only screens (welcome/login/register) redirect signed-in users. */
 export function GuestOnly() {
   const { user } = useAuth()
-  if (user) return <Navigate to={resolvePostAuthPath(user)} replace />
+  const { state } = useLocation()
+  const from = (state as { from?: string } | null)?.from
+  if (user) return <Navigate to={resolvePostAuthPath(user, from)} replace />
   return <Outlet />
 }

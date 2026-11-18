@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router'
 import { ROUTES } from '@/config/routes'
+import { useAdminAccess } from '@/features/admin/useAdminAccess'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { ProfileHeader } from '@/features/profile/components/ProfileHeader'
 import { ProfileInfoList } from '@/features/profile/components/ProfileInfoList'
@@ -9,6 +10,7 @@ import { WorkerProfessionalSummary } from '@/features/profile/components/WorkerP
 export function ProfilePage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const adminAccess = useAdminAccess(user?.id)
 
   if (!user) return null
 
@@ -30,8 +32,10 @@ export function ProfilePage() {
         <ProfileMenu
           onLogout={handleLogout}
           onEditProfile={() => navigate(ROUTES.profileEdit)}
+          onSettings={() => navigate(ROUTES.settings)}
           onEditProfessional={isWorker ? () => navigate(ROUTES.workerProfessional) : undefined}
           onVerification={isWorker ? () => navigate(ROUTES.workerVerification) : undefined}
+          onAdministration={adminAccess.data ? () => navigate(ROUTES.admin) : undefined}
         />
       </div>
     </div>

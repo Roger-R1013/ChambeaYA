@@ -11,8 +11,10 @@ export function formatMoney({ amount, currency }: Money): string {
 }
 
 export function formatDistance(km: number): string {
-  if (km < 1) return `${Math.max(100, Math.round((km * 1000) / 100) * 100)} m`
-  return `${km.toFixed(1)} km`
+  const tenths = Math.round(km * 10)
+  if (tenths === 0) return 'menos de 100 m'
+  if (tenths < 10) return `${tenths * 100} m`
+  return `${new Intl.NumberFormat('es-BO', { maximumFractionDigits: 1 }).format(tenths / 10)} km`
 }
 
 export function formatRating(rating: number): string {

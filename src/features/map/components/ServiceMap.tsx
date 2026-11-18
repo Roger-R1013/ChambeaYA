@@ -90,7 +90,7 @@ export function ServiceMap({
         </div>
       )}
       {tiles === 'error' && (
-        <div className="absolute top-3 right-3 left-14 z-[500] flex items-start gap-2 rounded-md bg-white p-3 text-caption text-ink-muted shadow-md" role="alert">
+        <div className="pointer-events-none absolute top-3 right-3 left-14 z-[500] flex items-start gap-2 rounded-md bg-white p-3 text-caption text-ink-muted shadow-md" role="alert">
           <MapPinOff className="mt-0.5 size-4 shrink-0 text-danger-600" strokeWidth={2} aria-hidden />
           <p>No se pudo cargar el mapa. Revisa tu conexión a internet.</p>
         </div>
@@ -102,14 +102,23 @@ export function ServiceMap({
 /** Smoothly moves the view when `point` changes. */
 export function MapFlyTo({ point, zoom }: { point: GeoPoint | null; zoom?: number }) {
   const map = useMap()
-  const lat = point?.lat
-  const lng = point?.lng
   useEffect(() => {
-    if (lat === undefined || lng === undefined) return
+    if (!point) return
+    const { lat, lng } = point
     const targetZoom = zoom ?? Math.max(map.getZoom(), 14)
     if (map.getCenter().equals([lat, lng]) && map.getZoom() === targetZoom) return
     map.flyTo([lat, lng], targetZoom, { duration: 0.6 })
-  }, [map, lat, lng, zoom])
+  }, [map, point, zoom])
+  return null
+}
+
+/** Reveals the selected marker while keeping the current zoom level. */
+export function MapPanTo({ point }: { point: GeoPoint }) {
+  const map = useMap()
+  const { lat, lng } = point
+  useEffect(() => {
+    map.panInside([lat, lng], { paddingTopLeft: [60, 36], paddingBottomRight: [36, 36] })
+  }, [map, lat, lng])
   return null
 }
 
@@ -132,6 +141,7 @@ export function UserLocationMarker({ point }: { point: GeoPoint }) {
     <CircleMarker
       center={[point.lat, point.lng]}
       radius={8}
+      interactive={false}
       pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#039F9C', fillOpacity: 1 }}
     />
   )

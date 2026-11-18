@@ -3,7 +3,7 @@ import type { GeoPoint } from '@/types/geo'
 
 export type GeolocationState =
   | { status: 'idle' }
-  | { status: 'requesting' }
+  | { status: 'requesting'; point: GeoPoint | null }
   | { status: 'granted'; point: GeoPoint; accuracy: number }
   | { status: 'denied' | 'unavailable' | 'error'; message: string }
 
@@ -29,7 +29,7 @@ export function useGeolocation({ autoIfGranted = false }: { autoIfGranted?: bool
       setState({ status: 'unavailable', message: MESSAGES.unsupported })
       return
     }
-    setState({ status: 'requesting' })
+    setState((current) => ({ status: 'requesting', point: 'point' in current ? current.point : null }))
     navigator.geolocation.getCurrentPosition(
       (position) =>
         setState({

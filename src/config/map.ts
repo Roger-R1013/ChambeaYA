@@ -12,7 +12,7 @@ import { DEFAULT_LOCATION } from '@/config/app'
 const env = import.meta.env as Record<string, string | undefined>
 
 export const MAP_CONFIG = {
-  /** Initial view only: never used as anybody's location. */
+  /** Initial view centered on the default search reference. */
   center: DEFAULT_LOCATION.point,
   zoom: 13,
   minZoom: 11,

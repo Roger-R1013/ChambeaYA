@@ -67,6 +67,11 @@ function AvailabilityEditor({ userId, initialAvailability, initialLocation }: {
   }
 
   const mapPoint = draft ?? sharedLocation?.point
+  const locationMessage = !sharedLocation
+    ? 'Aún no has compartido una ubicación.'
+    : availability === 'offline'
+      ? 'Tu ubicación aproximada está guardada. Tu marcador se oculta mientras estés desconectado.'
+      : 'Tienes una ubicación aproximada compartida.'
 
   return (
     <div className="flex flex-col gap-4">
@@ -92,7 +97,7 @@ function AvailabilityEditor({ userId, initialAvailability, initialLocation }: {
       </div>
 
       <p className="text-label text-ink-muted" role="status">
-        {sharedLocation ? 'Tienes una ubicación aproximada compartida.' : 'Aún no has compartido una ubicación.'}
+        {locationMessage}
       </p>
       {error && <Alert>{error}</Alert>}
 

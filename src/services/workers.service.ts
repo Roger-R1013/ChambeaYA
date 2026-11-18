@@ -35,7 +35,10 @@ interface PublicWorkerDetailRow extends PublicWorkerRow {
 }
 
 export const SEARCH_DEFAULT_RADIUS_KM = 15
-const MAX_QUERY_LENGTH = 60
+// Matches the limits enforced by search_workers (migration 0007).
+export const SEARCH_MIN_RADIUS_KM = 1
+export const SEARCH_MAX_RADIUS_KM = 50
+export const WORKER_SEARCH_QUERY_MAX_LENGTH = 60
 
 function toWorker(row: PublicWorkerRow): Worker {
   const rate = row.base_rate_bob === null ? null : Number(row.base_rate_bob)
@@ -67,16 +70,16 @@ function toNearbyWorker(row: PublicWorkerRow): NearbyWorker {
 }
 
 export interface WorkersService {
-  search(params: WorkerSearchParams): Promise<NearbyWorker[]>
+  search(params: WorkerSearchParams, signal?: AbortSignal): Promise<NearbyWorker[]>
   getFeatured(origin: GeoPoint | null): Promise<NearbyWorker[]>
   getById(id: string, origin: GeoPoint | null): Promise<WorkerDetail | null>
 }
 
 export const workersService: WorkersService = {
-  async search({ query, categoryId, origin, includeBusy = false, radiusKm = SEARCH_DEFAULT_RADIUS_KM, limit = 50 }) {
+  async search({ query, categoryId, origin, includeBusy = false, radiusKm = SEARCH_DEFAULT_RADIUS_KM, limit = 50 }, signal) {
     const client = requireSupabase()
-    const { data, error } = await client.rpc('search_workers', {
-      p_query: query?.trim().slice(0, MAX_QUERY_LENGTH) || null,
+    const request = client.rpc('search_workers', {
+      p_query: query?.trim().slice(0, WORKER_SEARCH_QUERY_MAX_LENGTH) || null,
       p_category_id: categoryId || null,
       p_lat: origin?.lat ?? null,
       p_lng: origin?.lng ?? null,
@@ -84,6 +87,7 @@ export const workersService: WorkersService = {
       p_limit: limit,
       p_include_busy: includeBusy,
     })
+    const { data, error } = await (signal ? request.abortSignal(signal) : request)
     if (error) throw toDataError(error, 'No se pudo completar la búsqueda. Inténtalo de nuevo.')
     return ((data ?? []) as PublicWorkerRow[]).map(toNearbyWorker)
   },
