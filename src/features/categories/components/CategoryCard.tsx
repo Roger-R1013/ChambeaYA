@@ -1,3 +1,4 @@
+import { createElement } from 'react'
 import { cn } from '@/lib/cn'
 import type { Category } from '@/types/category'
 import { getCategoryIcon } from '../categoryIcons'
@@ -9,8 +10,6 @@ export interface CategoryCardProps {
 }
 
 export function CategoryCard({ category, onSelect, className }: CategoryCardProps) {
-  const Icon = getCategoryIcon(category.id)
-
   return (
     <button
       type="button"
@@ -29,7 +28,11 @@ export function CategoryCard({ category, onSelect, className }: CategoryCardProp
           'md:size-11 md:bg-primary-50 md:shadow-none md:ring-0 md:group-hover:translate-y-0',
         )}
       >
-        <Icon className="size-6 md:size-5" strokeWidth={1.75} aria-hidden />
+        {createElement(getCategoryIcon(category.id), {
+          className: 'size-6 md:size-5',
+          strokeWidth: 1.75,
+          'aria-hidden': true,
+        })}
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="truncate text-caption font-semibold text-ink md:text-label">{category.name}</span>

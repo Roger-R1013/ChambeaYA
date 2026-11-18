@@ -4,11 +4,10 @@
 -- STATUS: DRAFT - NOT APPLIED. Requires 0001-0006. Additive and non-destructive.
 --
 -- Design decisions:
---   * NO exact location is ever stored. A BEFORE trigger snaps every point to a
---     ~550 m grid (0.005 deg) before it is written, whatever the client sends.
---     The worker's home cannot be recovered from the database.
+--   * A BEFORE trigger snaps every point to a ~550 m grid (0.005 deg) before
+--     writing it to worker_locations. The table stores the grid point only.
 --   * Public results return the grid cell plus a fixed per-worker offset
---     (< 220 m) so markers in the same cell do not overlap. Distances are
+--     (up to 0.002 deg per axis) to reduce marker overlap. Distances are
 --     computed from that public point, so changing the search origin cannot be
 --     used to triangulate anything more precise.
 --   * Locations are only accepted inside the Santa Cruz metropolitan area.
@@ -22,6 +21,8 @@
 --   * This is NOT live tracking (Phase 6): the worker shares a coarse point
 --     only when they decide to, and can remove it at any time.
 -- =============================================================================
+
+begin;
 
 -- ---------------------------------------------------------------------------
 -- 1. Worker availability location (coarse, owner-managed)
@@ -64,7 +65,7 @@ create trigger worker_locations_coarsen
   for each row execute function public.coarsen_worker_location();
 
 alter table public.worker_locations enable row level security;
-revoke all on public.worker_locations from anon, authenticated;
+revoke all on public.worker_locations from public, anon, authenticated;
 grant select, delete on public.worker_locations to authenticated;
 grant insert (worker_id, lat, lng, source) on public.worker_locations to authenticated;
 -- worker_id is included only so PostgREST upserts work; RLS (with check
@@ -95,14 +96,19 @@ create policy "worker_locations: owner can remove"
 -- ---------------------------------------------------------------------------
 -- 2. Helpers
 -- ---------------------------------------------------------------------------
--- Lowercase + strip Spanish accents so "plomeria" matches "PlomerÃ­a".
+-- Normalize Unicode, fold accented letters, then lowercase.
 create or replace function public.search_normalize(p_text text)
 returns text
 language sql
 immutable
 set search_path = ''
 as $$
-  select translate(lower(coalesce(p_text, '')), 'Ã¡Ã Ã¤Ã¢Ã©Ã¨Ã«ÃªÃ­Ã¬Ã¯Ã®Ã³Ã²Ã¶Ã´ÃºÃ¹Ã¼Ã»Ã±Ã§', 'aaaaeeeeiiiioooouuuunc');
+  select lower(translate(
+    normalize(coalesce(p_text, ''), NFC),
+    U&'\00E1\00E0\00E4\00E2\00E9\00E8\00EB\00EA\00ED\00EC\00EF\00EE\00F3\00F2\00F6\00F4\00FA\00F9\00FC\00FB\00F1\00E7' ||
+    U&'\00C1\00C0\00C4\00C2\00C9\00C8\00CB\00CA\00CD\00CC\00CF\00CE\00D3\00D2\00D6\00D4\00DA\00D9\00DC\00DB\00D1\00C7',
+    'aaaaeeeeiiiioooouuuuncAAAAEEEEIIIIOOOOUUUUNC'
+  ));
 $$;
 
 -- Public point = grid cell + fixed per-worker offset (max +/- 0.002 deg).
@@ -120,16 +126,17 @@ create or replace function public.haversine_km(p_lat1 double precision, p_lng1 d
 returns double precision
 language sql
 immutable
+strict
 set search_path = ''
 as $$
-  select 2 * 6371 * asin(sqrt(
+  select 2 * 6371 * asin(sqrt(least(1.0,
     power(sin(radians(p_lat2 - p_lat1) / 2), 2)
     + cos(radians(p_lat1)) * cos(radians(p_lat2)) * power(sin(radians(p_lng2 - p_lng1) / 2), 2)
-  ));
+  )));
 $$;
 
-revoke execute on function public.public_worker_point(uuid, numeric, numeric) from public, anon;
-revoke execute on function public.haversine_km(double precision, double precision, double precision, double precision) from public, anon;
+revoke execute on function public.public_worker_point(uuid, numeric, numeric) from public, anon, authenticated;
+revoke execute on function public.haversine_km(double precision, double precision, double precision, double precision) from public, anon, authenticated;
 revoke execute on function public.search_normalize(text) from public, anon;
 grant execute on function public.search_normalize(text) to authenticated;
 
@@ -226,7 +233,7 @@ begin
         from public.worker_profiles w
         join public.profiles p on p.id = w.id and p.account_type = 'worker'
         join public.worker_locations l on l.worker_id = w.id
-        left join public.service_zones z on z.id = w.service_zone_id
+        left join public.service_zones z on z.id = w.service_zone_id and z.is_active
         cross join lateral public.public_worker_point(w.id, l.lat, l.lng) pt
         cross join lateral (
           select array_agg(wc.category_id order by wc.category_id) as ids,
@@ -305,9 +312,13 @@ begin
   if v_uid is null then
     raise exception 'not_authenticated' using errcode = '42501';
   end if;
-  if v_uid <> p_worker_id
+  if v_uid is distinct from p_worker_id
      and not exists (select 1 from public.profiles p where p.id = v_uid and p.account_type = 'client') then
     raise exception 'client_only' using errcode = '42501';
+  end if;
+  if p_lat is not null and p_lng is not null
+     and (p_lat not between -90 and 90 or p_lng not between -180 and 180) then
+    raise exception 'invalid_location' using errcode = '22023';
   end if;
 
   return query
@@ -335,7 +346,7 @@ begin
          end
     from public.worker_profiles w
     join public.profiles p on p.id = w.id and p.account_type = 'worker'
-    left join public.service_zones z on z.id = w.service_zone_id
+    left join public.service_zones z on z.id = w.service_zone_id and z.is_active
     left join public.worker_locations l on l.worker_id = w.id
     left join lateral public.public_worker_point(w.id, l.lat, l.lng) pt on l.worker_id is not null
     cross join lateral (select (l.worker_id is not null and w.availability_status in ('available', 'busy')) as visible) shown
@@ -349,4 +360,6 @@ $$;
 
 revoke execute on function public.get_public_worker(uuid, double precision, double precision) from public, anon;
 grant execute on function public.get_public_worker(uuid, double precision, double precision) to authenticated;
+
+commit;
 

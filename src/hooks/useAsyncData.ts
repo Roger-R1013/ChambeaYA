@@ -5,25 +5,30 @@ export type AsyncState<T> =
   | { status: 'success'; data: T; error: null }
   | { status: 'error'; data: null; error: Error }
 
+const LOADING = { status: 'loading', data: null, error: null } as const
+
 /**
  * Runs an async loader on mount (and when the loader identity changes).
  * Pass a stable loader (module-level function or useCallback).
  */
 export function useAsyncData<T>(loader: () => Promise<T>): AsyncState<T> {
-  const [state, setState] = useState<AsyncState<T>>({ status: 'loading', data: null, error: null })
+  const [result, setResult] = useState<{ loader: () => Promise<T>; state: AsyncState<T> } | null>(null)
 
   useEffect(() => {
     let isActive = true
     loader()
       .then((data) => {
-        if (isActive) setState({ status: 'success', data, error: null })
+        if (isActive) setResult({ loader, state: { status: 'success', data, error: null } })
       })
       .catch((error: unknown) => {
         if (isActive) {
-          setState({
-            status: 'error',
-            data: null,
-            error: error instanceof Error ? error : new Error('No se pudo cargar la información.'),
+          setResult({
+            loader,
+            state: {
+              status: 'error',
+              data: null,
+              error: error instanceof Error ? error : new Error('No se pudo cargar la información.'),
+            },
           })
         }
       })
@@ -32,5 +37,5 @@ export function useAsyncData<T>(loader: () => Promise<T>): AsyncState<T> {
     }
   }, [loader])
 
-  return state
+  return result?.loader === loader ? result.state : LOADING
 }

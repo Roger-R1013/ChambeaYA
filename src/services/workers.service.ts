@@ -56,11 +56,13 @@ function toWorker(row: PublicWorkerRow): Worker {
 }
 
 function toNearbyWorker(row: PublicWorkerRow): NearbyWorker {
-  const hasPoint = row.approx_lat !== null && row.approx_lng !== null
+  const lat = Number(row.approx_lat ?? NaN)
+  const lng = Number(row.approx_lng ?? NaN)
+  const distanceKm = Number(row.distance_km ?? NaN)
   return {
     ...toWorker(row),
-    location: hasPoint ? { lat: Number(row.approx_lat), lng: Number(row.approx_lng) } : null,
-    distanceKm: row.distance_km === null ? null : Number(row.distance_km),
+    location: Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null,
+    distanceKm: Number.isFinite(distanceKm) && distanceKm >= 0 ? distanceKm : null,
   }
 }
 

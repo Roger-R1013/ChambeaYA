@@ -14,6 +14,7 @@ export interface ServiceMapProps {
   center?: GeoPoint
   zoom?: number
   className?: string
+  restrictToServiceArea?: boolean
   children?: ReactNode
   onMapClick?: (point: GeoPoint) => void
 }
@@ -39,7 +40,15 @@ function ResizeSync() {
  * Base map of Santa Cruz de la Sierra (Leaflet + OpenStreetMap tiles).
  * Shows loading / error overlays and always renders the OSM attribution.
  */
-export function ServiceMap({ label, center = MAP_CONFIG.center, zoom = MAP_CONFIG.zoom, className, children, onMapClick }: ServiceMapProps) {
+export function ServiceMap({
+  label,
+  center = MAP_CONFIG.center,
+  zoom = MAP_CONFIG.zoom,
+  className,
+  restrictToServiceArea = true,
+  children,
+  onMapClick,
+}: ServiceMapProps) {
   const [tiles, setTiles] = useState<TileStatus>('loading')
 
   return (
@@ -53,7 +62,7 @@ export function ServiceMap({ label, center = MAP_CONFIG.center, zoom = MAP_CONFI
         zoom={zoom}
         minZoom={MAP_CONFIG.minZoom}
         maxZoom={MAP_CONFIG.maxZoom}
-        maxBounds={SERVICE_AREA_BOUNDS}
+        maxBounds={restrictToServiceArea ? SERVICE_AREA_BOUNDS : undefined}
         maxBoundsViscosity={0.8}
         scrollWheelZoom
         className="size-full"
@@ -81,9 +90,9 @@ export function ServiceMap({ label, center = MAP_CONFIG.center, zoom = MAP_CONFI
         </div>
       )}
       {tiles === 'error' && (
-        <div className="absolute inset-x-3 top-3 z-[500] flex items-start gap-2 rounded-md bg-white p-3 text-caption text-ink-muted shadow-md" role="alert">
+        <div className="absolute top-3 right-3 left-14 z-[500] flex items-start gap-2 rounded-md bg-white p-3 text-caption text-ink-muted shadow-md" role="alert">
           <MapPinOff className="mt-0.5 size-4 shrink-0 text-danger-600" strokeWidth={2} aria-hidden />
-          <p>No se pudo cargar el mapa. Revisa tu conexión a internet. Los resultados siguen disponibles en la lista.</p>
+          <p>No se pudo cargar el mapa. Revisa tu conexión a internet.</p>
         </div>
       )}
     </div>
@@ -97,7 +106,9 @@ export function MapFlyTo({ point, zoom }: { point: GeoPoint | null; zoom?: numbe
   const lng = point?.lng
   useEffect(() => {
     if (lat === undefined || lng === undefined) return
-    map.flyTo([lat, lng], zoom ?? Math.max(map.getZoom(), 14), { duration: 0.6 })
+    const targetZoom = zoom ?? Math.max(map.getZoom(), 14)
+    if (map.getCenter().equals([lat, lng]) && map.getZoom() === targetZoom) return
+    map.flyTo([lat, lng], targetZoom, { duration: 0.6 })
   }, [map, lat, lng, zoom])
   return null
 }

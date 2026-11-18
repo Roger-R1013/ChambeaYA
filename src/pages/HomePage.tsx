@@ -52,7 +52,7 @@ export function HomePage() {
         <Section
           id="featured-workers"
           title="Profesionales destacados"
-          description="Mejor calificados y disponibles en tu zona."
+          description="Profesionales disponibles en Santa Cruz de la Sierra."
         >
           <FeaturedWorkers onViewProfile={handleViewProfile} />
         </Section>

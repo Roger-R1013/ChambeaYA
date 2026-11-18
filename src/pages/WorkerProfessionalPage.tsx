@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/layout/PageHeader'
+import { Section } from '@/components/layout/Section'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -7,6 +8,7 @@ import { ROUTES } from '@/config/routes'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { WorkerProfessionalForm } from '@/features/profile/components/WorkerProfessionalForm'
 import { useCatalogCategories, useServiceZones, useWorkerProfile } from '@/features/profile/hooks/useProfileData'
+import { WorkerAvailabilitySettings } from '@/features/workers/components/WorkerAvailabilitySettings'
 
 function WorkerProfessionalContent({ userId }: { userId: string }) {
   const profileState = useWorkerProfile(userId)
@@ -54,6 +56,11 @@ export function WorkerProfessionalPage() {
         />
         <Card as="section" padding="lg">
           <WorkerProfessionalContent userId={user.id} />
+        </Card>
+        <Card padding="lg">
+          <Section id="worker-availability" title="Disponibilidad y ubicación">
+            <WorkerAvailabilitySettings userId={user.id} />
+          </Section>
         </Card>
       </div>
     </div>
