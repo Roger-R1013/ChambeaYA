@@ -5,7 +5,6 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { RootLayout } from '@/layouts/RootLayout'
 import { AccountTypePage } from '@/pages/AccountTypePage'
-import { ActivityPage } from '@/pages/ActivityPage'
 import { EditProfilePage } from '@/pages/EditProfilePage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
@@ -74,7 +73,18 @@ export const router = createBrowserRouter([
                     path: ROUTES.search,
                     lazy: { Component: async () => (await import('@/pages/SearchPage')).SearchPage },
                   },
-                  { path: ROUTES.activity, element: <ActivityPage /> },
+                  {
+                    path: ROUTES.activity,
+                    lazy: { Component: async () => (await import('@/pages/ActivityPage')).ActivityPage },
+                  },
+                  {
+                    path: ROUTES.serviceRequest,
+                    lazy: { Component: async () => (await import('@/pages/ServiceRequestPage')).ServiceRequestPage },
+                  },
+                  {
+                    path: ROUTES.serviceJourney,
+                    lazy: { Component: async () => (await import('@/pages/ServiceJourneyPage')).ServiceJourneyPage },
+                  },
                   { path: ROUTES.profile, element: <ProfilePage /> },
                   { path: ROUTES.profileEdit, element: <EditProfilePage /> },
                   {
@@ -92,6 +102,10 @@ export const router = createBrowserRouter([
                     ],
                   },
                   { path: ROUTES.workerDetail, element: <WorkerDetailPage /> },
+                  {
+                    path: ROUTES.requestWorker,
+                    lazy: { Component: async () => (await import('@/pages/RequestWorkerPage')).RequestWorkerPage },
+                  },
                 ],
               },
             ],

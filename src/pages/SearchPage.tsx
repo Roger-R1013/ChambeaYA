@@ -10,13 +10,13 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingState } from '@/components/ui/LoadingState'
 import { Select } from '@/components/ui/Select'
 import { DEFAULT_LOCATION } from '@/config/app'
-import { MAP_CONFIG } from '@/config/map'
 import { buildWorkerDetailPath } from '@/config/routes'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { CategoryGrid } from '@/features/categories/components/CategoryGrid'
 import { useCategories } from '@/features/categories/hooks/useCategories'
-import { MapFlyTo, MapPanTo, ServiceMap, UserLocationMarker } from '@/features/map/components/ServiceMap'
-import { WorkerMarkers } from '@/features/map/components/WorkerMarkers'
+import { VectorMap, type VectorMarker } from '@/features/map/components/VectorMap'
+import { VectorStyleControl } from '@/features/map/components/VectorStyleControl'
+import type { VectorStyle } from '@/features/map/vectorStyles'
 import { SearchBar } from '@/features/search/components/SearchBar'
 import { WorkerCard } from '@/features/workers/components/WorkerCard'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -30,6 +30,7 @@ import {
 } from '@/services/workers.service'
 import type { Category } from '@/types/category'
 import type { NearbyWorker } from '@/types/worker'
+import { getFullName, getInitials } from '@/utils/format'
 
 const RADIUS_OPTIONS = Array.from(
   { length: SEARCH_MAX_RADIUS_KM - SEARCH_MIN_RADIUS_KM + 1 },
@@ -44,6 +45,7 @@ export function SearchPage() {
   const categories = useCategories()
   const { state: geolocation, request: requestLocation } = useGeolocation()
   const [refreshKey, setRefreshKey] = useState(0)
+  const [mapStyle, setMapStyle] = useState<VectorStyle>('liberty')
   const summaryRef = useRef<HTMLDivElement>(null)
   const query = (searchParams.get('q') ?? '').trim().slice(0, WORKER_SEARCH_QUERY_MAX_LENGTH)
   const categoryId = searchParams.get('category')?.trim() || null
@@ -71,6 +73,13 @@ export function SearchPage() {
   const workers = results.data ?? []
   const selectedId = selection?.filters === filters ? selection.id : null
   const selectedWorker = workers.find((worker) => worker.id === selectedId)
+  const focus = useMemo(() => ({ point: viewerPoint ?? DEFAULT_LOCATION.point, zoom: viewerPoint ? 14 : 13 }), [viewerPoint])
+  const markers: VectorMarker[] = workers.flatMap((worker) => worker.location ? [{
+    id: worker.id, kind: 'worker', point: worker.location, label: `${getFullName(worker)}, ${worker.profession}`,
+    text: getInitials(getFullName(worker)), avatar: worker.avatarUrl,
+    selected: worker.id === selectedWorker?.id, available: worker.availability === 'available',
+  }] : [])
+  if (viewerPoint) markers.push({ id: 'viewer', kind: 'viewer', point: viewerPoint, label: 'Tu ubicación' })
   const hasSelectedWorker = selectedWorker !== undefined
   useEffect(() => {
     if (hasSelectedWorker) summaryRef.current?.scrollIntoView({ block: 'nearest' })
@@ -142,8 +151,9 @@ export function SearchPage() {
         }
       >
         {geolocationMessage && <Alert tone="info">{geolocationMessage}</Alert>}
-        {isClient && (
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {isClient && (
+            <div className="flex flex-wrap items-center gap-3">
             <label htmlFor="search-radius" className="text-label text-ink">Radio de búsqueda</label>
             <Select
               id="search-radius"
@@ -154,19 +164,17 @@ export function SearchPage() {
                 <option key={radius} value={radius}>{radius} km</option>
               ))}
             </Select>
-          </div>
-        )}
+            </div>
+          )}
+          <VectorStyleControl value={mapStyle} onChange={setMapStyle} />
+        </div>
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <ServiceMap label="Mapa de servicios" className="h-80 md:h-[28rem]" restrictToServiceArea={false}>
-            <MapFlyTo point={viewerPoint ?? MAP_CONFIG.center} zoom={viewerPoint ? 14 : MAP_CONFIG.zoom} />
-            {viewerPoint && <UserLocationMarker point={viewerPoint} />}
-            {selectedWorker?.location && <MapPanTo point={selectedWorker.location} />}
-            <WorkerMarkers
-              workers={workers}
-              selectedId={selectedWorker?.id ?? null}
-              onSelect={handleSelectWorker}
-            />
-          </ServiceMap>
+          <VectorMap label="Mapa de servicios" className="h-80 md:h-[28rem]" style={mapStyle}
+            focus={focus} reveal={selectedWorker?.location ?? undefined} markers={markers}
+            onSelect={(id) => {
+              const worker = workers.find((item) => item.id === id)
+              if (worker) handleSelectWorker(worker)
+            }} />
 
           <div
             className="flex min-w-0 flex-col gap-3 lg:max-h-[28rem] lg:overflow-y-auto"

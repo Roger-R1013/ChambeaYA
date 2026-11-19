@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { Briefcase, MapPin, MapPinned, Timer, UserRoundX } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Section } from '@/components/layout/Section'
@@ -7,10 +7,12 @@ import { Alert } from '@/components/ui/Alert'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { buttonStyles } from '@/components/ui/button.styles'
 import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingState } from '@/components/ui/LoadingState'
-import { ROUTES } from '@/config/routes'
+import { buildRequestWorkerPath, ROUTES } from '@/config/routes'
+import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useCategories } from '@/features/categories/hooks/useCategories'
 import { PRICING_META } from '@/features/profile/pricing'
 import { AVAILABILITY_META } from '@/features/workers/availability'
@@ -80,6 +82,7 @@ function ProfessionalInformation({ worker }: { worker: WorkerDetail }) {
 
 export function WorkerDetailPage() {
   const { workerId = '' } = useParams()
+  const { user } = useAuth()
   const [refreshKey, setRefreshKey] = useState(0)
   const loader = useCallback(() => workersService.getById(workerId, null), [workerId])
   const state = useAsyncData(loader, { refreshKey })
@@ -145,6 +148,13 @@ export function WorkerDetailPage() {
               </p>
             )}
           </Card>
+          {user?.accountType === 'client' && worker.categoryIds.length > 0 && (
+            worker.availability === 'available'
+              ? <Link to={buildRequestWorkerPath(worker.id)} className={buttonStyles({ className: 'self-start' })}>
+                  Solicitar servicio
+                </Link>
+              : <Alert tone="info">Este profesional no recibe solicitudes nuevas en este momento.</Alert>
+          )}
           <ProfessionalInformation worker={worker} />
         </>
       )}

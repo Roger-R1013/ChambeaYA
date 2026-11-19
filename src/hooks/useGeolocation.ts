@@ -16,12 +16,15 @@ const MESSAGES = {
 } as const
 
 /**
- * One-shot browser geolocation (no continuous tracking: that is Phase 6).
+ * One-shot browser geolocation for search and destination selection.
  * The permission prompt only appears when `request()` is called by the user.
  * With `autoIfGranted`, a position is read silently only if the user already
  * granted the permission earlier.
  */
-export function useGeolocation({ autoIfGranted = false }: { autoIfGranted?: boolean } = {}) {
+export function useGeolocation({ autoIfGranted = false, maximumAge = 5 * 60_000 }: {
+  autoIfGranted?: boolean
+  maximumAge?: number
+} = {}) {
   const [state, setState] = useState<GeolocationState>({ status: 'idle' })
 
   const request = useCallback(() => {
@@ -42,9 +45,9 @@ export function useGeolocation({ autoIfGranted = false }: { autoIfGranted?: bool
         else if (error.code === error.TIMEOUT) setState({ status: 'error', message: MESSAGES.timeout })
         else setState({ status: 'unavailable', message: MESSAGES.unavailable })
       },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 5 * 60_000 },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge },
     )
-  }, [])
+  }, [maximumAge])
 
   useEffect(() => {
     if (!autoIfGranted || !navigator.permissions?.query) return
