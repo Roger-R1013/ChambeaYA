@@ -1,23 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { JourneyError, serviceJourney } from '@/services/serviceJourney.service'
-import type { GeoPosition } from '@/types/geo'
 import type { JourneyEnd } from '@/types/serviceJourney'
-import { haversineDistanceKm } from '@/utils/geo'
+import { classifyFix, shouldPublishFix, TRACKING, trackingBackoff, type JourneyFix } from './tracking'
 
 type GpsPhase = 'idle' | 'locating' | 'sharing'
+
+const GPS_OPTIONS = { enableHighAccuracy: true, maximumAge: 0, timeout: TRACKING.gpsTimeoutMs }
 
 interface ActiveWatch {
   session: string
   watchId?: number
-  attempted: boolean
+  stopTimer?: () => void
+  startRequest?: Promise<unknown>
   started: boolean
   busy: boolean
+  reading: boolean
   failures: number
   retryAfter: number
-  sent?: { point: GeoPosition; at: number }
+  lastActivity: number
+  lastReadAttempt: number
+  latest?: JourneyFix
+  sent?: { point: JourneyFix; at: number }
 }
 
-export function useJourneyGps(id: string, refresh: () => void, terminated: boolean, expired: boolean) {
+export function useJourneyGps(id: string, refresh: () => void, terminated: boolean) {
   const active = useRef<ActiveWatch | null>(null)
   const [phase, setPhase] = useState<GpsPhase>('idle')
   const [message, setMessage] = useState<string | null>(null)
@@ -26,11 +32,16 @@ export function useJourneyGps(id: string, refresh: () => void, terminated: boole
     const current = active.current
     active.current = null
     if (current?.watchId !== undefined) navigator.geolocation.clearWatch(current.watchId)
+    current?.stopTimer?.()
     return current
   }, [])
 
   const pauseInBackground = useCallback((watch: ActiveWatch | null) => {
-    if (watch?.attempted) void serviceJourney.finish(id, 'pause', watch.session).catch(() => undefined)
+    if (!watch?.startRequest) return
+    const pause = () => serviceJourney.finish(id, 'pause', watch.session)
+    // If start is still in flight, pause that same session after the request settles.
+    const request = watch.started ? pause() : watch.startRequest.then(pause, pause)
+    void request.catch(() => undefined)
   }, [id])
 
   useEffect(() => {
@@ -46,13 +57,10 @@ export function useJourneyGps(id: string, refresh: () => void, terminated: boole
   }, [clearWatch, pauseInBackground])
 
   useEffect(() => {
-    if (!terminated && !(expired && active.current?.started)) return
+    if (!terminated || !active.current) return
     clearWatch()
-    queueMicrotask(() => {
-      setPhase('idle')
-      if (expired && !terminated) setMessage('El seguimiento se pausó al dejar de recibir lecturas de GPS.')
-    })
-  }, [terminated, expired, clearWatch])
+    queueMicrotask(() => setPhase('idle'))
+  }, [terminated, clearWatch])
 
   function start() {
     if (active.current || terminated) return
@@ -62,75 +70,131 @@ export function useJourneyGps(id: string, refresh: () => void, terminated: boole
     }
     setMessage(null)
     const watch: ActiveWatch = {
-      session: crypto.randomUUID(), attempted: false, started: false, busy: false, failures: 0, retryAfter: 0,
+      session: crypto.randomUUID(), started: false, busy: false, reading: false,
+      failures: 0, retryAfter: 0, lastActivity: 0, lastReadAttempt: Date.now(),
     }
     active.current = watch
     setPhase('locating')
 
-    async function receive(position: GeolocationPosition) {
+    function canUpdate() {
+      return active.current === watch && document.visibilityState === 'visible' && navigator.onLine
+    }
+
+    async function flush() {
       const now = Date.now()
-      if (active.current !== watch || watch.busy || now < watch.retryAfter || !navigator.onLine) return
-      const { latitude: lat, longitude: lng, accuracy } = position.coords
-      if (accuracy > 100 || !Number.isFinite(accuracy) || now - position.timestamp > 45_000) {
-        setMessage('Esperando una ubicación reciente con mejor precisión GPS.')
-        return
-      }
-      const point = { lat, lng, accuracy, timestamp: position.timestamp }
-      if (watch.sent) {
-        const elapsed = now - watch.sent.at
-        if (elapsed < 8_000 || (elapsed < 22_000 && haversineDistanceKm(watch.sent.point, point) < 0.015)) return
-      }
+      if (!canUpdate() || watch.busy || now < watch.retryAfter) return
+      const point = watch.latest
+      const publish = point && shouldPublishFix(point, watch.sent, now)
+      if (!publish && (!watch.started || now - watch.lastActivity < TRACKING.heartbeatMs)) return
 
       watch.busy = true
       try {
         if (!watch.started) {
-          watch.attempted = true
-          await serviceJourney.start(id, watch.session)
+          watch.startRequest = serviceJourney.start(id, watch.session)
+          await watch.startRequest
           watch.started = true
-          if (active.current !== watch) { pauseInBackground(watch); return }
-          setPhase('sharing')
-        }
-        if (await serviceJourney.publish(id, watch.session, point)) {
+          watch.lastActivity = now
           if (active.current !== watch) return
-          if (!watch.sent || watch.failures > 0) refresh()
-          watch.sent = { point, at: now }
-          setMessage(null)
+          setPhase('sharing')
+          refresh()
+        }
+        if (!canUpdate()) return
+        if (publish && point && shouldPublishFix(point, watch.sent, Date.now())) {
+          const sentAt = Date.now()
+          const saved = await serviceJourney.publish(id, watch.session, point)
+          if (active.current !== watch) return
+          if (watch.latest === point) watch.latest = undefined
+          if (saved) {
+            if (!watch.sent || watch.failures > 0) refresh()
+            watch.lastActivity = sentAt
+            watch.sent = { point, at: sentAt }
+            setMessage(null)
+          }
+        }
+        const heartbeatAt = Date.now()
+        if (canUpdate() && heartbeatAt - watch.lastActivity >= TRACKING.heartbeatMs) {
+          await serviceJourney.heartbeat(id, watch.session)
+          if (active.current !== watch) return
+          watch.lastActivity = heartbeatAt
+          if (watch.failures > 0) {
+            setMessage(null)
+            refresh()
+          }
         }
         watch.failures = 0
       } catch (cause) {
         if (active.current !== watch) return
-        watch.failures += 1
-        if (watch.failures >= 3 || cause instanceof JourneyError) {
-          const stopped = clearWatch()
-          if (!(cause instanceof JourneyError)) pauseInBackground(stopped)
+        if (cause instanceof JourneyError) {
+          clearWatch()
           setPhase('idle')
-          setMessage(cause instanceof Error ? cause.message : 'Se detuvo el envío de la ubicación.')
+          setMessage(cause.message)
           refresh()
         } else {
-          watch.retryAfter = Date.now() + (3_000 * watch.failures)
-          setMessage('No se pudo enviar la posición. Se reintentará con una nueva lectura del GPS.')
+          watch.retryAfter = Date.now() + trackingBackoff(watch.failures++, 3_000, 16_000)
+          setMessage('No se pudo actualizar el seguimiento. Se reintentará automáticamente.')
         }
       } finally {
         watch.busy = false
       }
     }
 
-    try {
-      watch.watchId = navigator.geolocation.watchPosition(
-        (position) => { void receive(position) },
-        (error) => {
-          if (active.current !== watch) return
-          if (error.code === error.PERMISSION_DENIED) {
-            pauseInBackground(clearWatch())
-            setPhase('idle')
-            setMessage('Permiso de ubicación denegado. Puedes cambiarlo en los permisos de este sitio.')
-            refresh()
-          } else {
-            setMessage('El GPS dejó de responder. Esperando una nueva lectura.')
-          }
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 16_000 },
+    let lastValid: JourneyFix | undefined
+    function receive(position: GeolocationPosition) {
+      if (active.current !== watch) return
+      const { latitude: lat, longitude: lng, accuracy } = position.coords
+      const point = { lat, lng, accuracy, timestamp: position.timestamp }
+      const quality = classifyFix(point, lastValid, Date.now())
+      if (quality === 'old') return
+      if (quality !== 'valid') {
+        setMessage(quality === 'jump' ? 'Esperando una lectura GPS que confirme el desplazamiento.' : 'Esperando una ubicación con mejor precisión GPS.')
+        return
+      }
+      lastValid = point
+      watch.latest = point
+      void flush()
+    }
+
+    function handleGpsError(error: GeolocationPositionError) {
+      if (active.current !== watch) return
+      if (error.code === error.PERMISSION_DENIED) {
+        pauseInBackground(clearWatch())
+        setPhase('idle')
+        setMessage('Permiso de ubicación denegado. Puedes cambiarlo en los permisos de este sitio.')
+        refresh()
+      } else {
+        setMessage('El GPS dejó de responder. Esperando una nueva lectura.')
+      }
+    }
+
+    function tick() {
+      if (!canUpdate()) return
+      void flush()
+      const now = Date.now()
+      if (watch.reading || now - Math.max(lastValid?.timestamp ?? 0, watch.lastReadAttempt) < TRACKING.gpsRefreshMs) return
+      watch.reading = true
+      watch.lastReadAttempt = now
+      // watchPosition can go quiet while stationary. Ask for a new reading rather than replaying the old one.
+      navigator.geolocation.getCurrentPosition(
+        (position) => { watch.reading = false; receive(position) },
+        (error) => { watch.reading = false; handleGpsError(error) },
+        GPS_OPTIONS,
       )
+    }
+
+    try {
+      watch.watchId = navigator.geolocation.watchPosition(receive, handleGpsError, GPS_OPTIONS)
+      const timer = window.setInterval(tick, TRACKING.tickMs)
+      const reconnect = () => {
+        watch.retryAfter = 0
+        tick()
+      }
+      window.addEventListener('online', reconnect)
+      document.addEventListener('visibilitychange', tick)
+      watch.stopTimer = () => {
+        window.clearInterval(timer)
+        window.removeEventListener('online', reconnect)
+        document.removeEventListener('visibilitychange', tick)
+      }
     } catch {
       clearWatch()
       setPhase('idle')
@@ -142,7 +206,8 @@ export function useJourneyGps(id: string, refresh: () => void, terminated: boole
     const current = clearWatch()
     setPhase('idle')
     setMessage(null)
-    if (action === 'pause' && current && !current.attempted) return
+    if (action === 'pause' && current && !current.startRequest) return
+    if (current && !current.started) await current.startRequest?.catch(() => undefined)
     await serviceJourney.finish(id, action, action === 'pause' ? current?.session : undefined)
     refresh()
   }

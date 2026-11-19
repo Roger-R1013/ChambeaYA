@@ -2,9 +2,9 @@
 
 ## Activación
 
-1. Aplica la migración 0010 de solicitudes y luego la 0011 de recorridos. La 0011 añade `service_journeys` a la publicación `supabase_realtime`. Solo se publican cambios de estado y tiempos de actualización. Las coordenadas y el identificador de la sesión de escritura permanecen en una tabla separada, accesible únicamente por RPC.
-2. En Supabase, comprueba que Realtime tenga habilitado Postgres Changes para `service_journeys`. El canal privado `service-journey:<UUID>` verifica la membresía de la solicitud. Si el canal se interrumpe, la pantalla visible consulta un respaldo HTTP de manera periódica.
-3. Habilita Supabase Cron y programa la limpieza con el propietario de la base, una vez por minuto. La aplicación deja de entregar posiciones de más de 45 segundos y la sesión vence después de 65 segundos sin publicación válida, incluso si Cron todavía no está configurado. Cron elimina del almacenamiento activo la última posición de las sesiones vencidas.
+1. Aplica 0010 (solicitudes), 0011 (recorridos) y 0012 (actividad de seguimiento), en ese orden. Si 0010 y 0011 ya están aplicadas, ejecuta únicamente 0012 antes de publicar la versión actualizada del frontend. La publicación `supabase_realtime` contiene los metadatos de `service_journeys`. Las coordenadas y el identificador de la sesión permanecen en una tabla privada y solo se gestionan mediante RPC.
+2. En Supabase, comprueba que Realtime tenga habilitado Postgres Changes para `service_journeys`. El canal privado `service-journey:<UUID>` verifica la membresía de la solicitud. La pantalla visible consulta la RPC cada 15 segundos si Realtime está desconectado, con espera creciente tras errores. Si el SDK no recupera el canal, la aplicación espera, comprueba la autorización mediante RPC y abre un canal de reemplazo. Al volver la conexión o la vista, se valida el acceso antes de mostrar coordenadas precisas.
+3. Habilita Supabase Cron y programa la limpieza con el propietario de la base, una vez por minuto. Conserva el mismo trabajo si ya está programado. La sesión vence tras 65 segundos sin una publicación GPS válida o señal de actividad aceptada. Tras vencer, la RPC deja de entregar coordenadas de inmediato y Cron elimina la última posición del almacenamiento activo.
 
    ```sql
    select cron.schedule(
@@ -14,9 +14,16 @@
    );
    ```
 
-4. Con dos cuentas, confirma una contratación. Desde su detalle, el cliente confirma el destino y el trabajador pulsa **Estoy en camino**. Comprueba que el cliente vea posiciones nuevas sin recargar, que una sesión duplicada se rechace y que una cuenta ajena no pueda acceder. Detén las actualizaciones y verifica el mensaje de ubicación sin actualizar. Prueba **Detener seguimiento**, **He llegado** y la cancelación en una contratación separada. La cancelación conserva el acuerdo original como historial, marca cancelada la ejecución e impide al trabajador seguir consultando la dirección.
+4. Con dos cuentas, confirma una contratación. Desde su detalle, el cliente confirma el destino y el trabajador pulsa **Estoy en camino**. Mantén la pantalla del trabajador abierta y permanece detenido al menos dos minutos, luego camina y confirma que el cliente vea lecturas nuevas sin recargar. Si el GPS pierde señal durante más de 45 segundos y la sesión sigue comunicándose, el cliente conserva la última posición y ve «Ubicación sin actualizar» hasta que se obtenga una lectura nueva. Comprueba también que una sesión duplicada se rechace y que una cuenta ajena no pueda acceder. Prueba **Detener seguimiento**, **He llegado** y la cancelación en una contratación separada. La cancelación conserva el acuerdo original como historial e impide al trabajador seguir consultando la dirección.
 
-La geolocalización web requiere HTTPS o localhost y permiso del navegador. Bloquear la pantalla o cambiar de aplicación puede suspender el GPS. Reabrir o recargar la pantalla no reinicia el seguimiento. Terminarlo elimina la última posición y conserva los tiempos y el estado del recorrido.
+## Ajustes y recuperación
+
+- Con la pantalla visible y conexión, el trabajador mantiene un observador GPS. Tras 28 segundos sin una lectura válida, se solicita una lectura nueva, con una sola solicitud de respaldo en curso. Los envíos guardados del trabajador se separan al menos 8 segundos con movimiento significativo o 28 segundos con movimiento mínimo. El umbral de movimiento toma en cuenta la precisión de ambas lecturas.
+- Si pasan unos 20 segundos sin renovar la sesión mediante GPS, la aplicación envía una señal de actividad. Esta señal conserva intacta la hora de la última lectura. El cliente indica la precisión estimada, mantiene la última posición autorizada cuando queda desactualizada y deja de calcular rutas o estimaciones hasta recibir una lectura reciente.
+- Los ajustes del frontend están en `src/features/serviceJourney/tracking.ts`. Ajusta la cadencia con pruebas en dispositivos reales. El servidor verifica que los puntos lleguen en orden, con hasta 100 m de margen de precisión y menos de 45 segundos de antigüedad. La vigencia de 65 segundos y el límite de escrituras de la RPC se configuran en SQL.
+- Con ambas pantallas abiertas, corta y restablece la conexión antes del vencimiento en cada dispositivo. Comprueba que se retiran temporalmente las coordenadas durante la revalidación, que el cliente vuelve a recibir puntos y que el trabajador no debe reiniciar la sesión. Repite con un corte superior a 65 segundos desde la última actividad aceptada. En ese caso, la sesión anterior debe quedar pausada y el trabajador debe pulsar **Estoy en camino** para abrir otra.
+
+La geolocalización web requiere HTTPS o localhost y permiso del navegador. Bloquear la pantalla o cambiar de aplicación puede suspender el GPS. Reabrir o recargar la pantalla requiere iniciar el seguimiento de forma explícita. El seguimiento con pantalla bloqueada o en segundo plano durante periodos prolongados requeriría una aplicación móvil con permisos de ubicación en segundo plano y servicios sujetos a las reglas de Android o iOS. Terminar el seguimiento elimina la última posición y conserva los tiempos y el estado del recorrido.
 
 ## Mapas y proveedores
 

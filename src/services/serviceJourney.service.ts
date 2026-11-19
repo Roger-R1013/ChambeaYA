@@ -22,16 +22,19 @@ function asJourneyError(error: { message: string; code?: string }) {
   return toDataError(error, 'No se pudo actualizar el recorrido. Comprueba tu conexión.')
 }
 
-async function mutate(rpc: 'set_service_destination' | 'start_service_journey' | 'publish_service_position' | 'finish_service_journey', params: Record<string, unknown>) {
-  const { data, error } = await requireSupabase().rpc(rpc, params)
+type JourneyMutation = 'set_service_destination' | 'start_service_journey' | 'publish_service_position'
+  | 'heartbeat_service_journey' | 'finish_service_journey'
+
+async function mutate(rpc: JourneyMutation, params: Record<string, unknown>) {
+  const { data, error } = await requireSupabase().rpc(rpc, params).abortSignal(AbortSignal.timeout(12_000))
   if (error) throw asJourneyError(error)
   return data
 }
 
 export const serviceJourney = {
   async get(id: string, signal: AbortSignal): Promise<JourneySnapshot | null> {
-    const { data, error } = await requireSupabase().rpc('get_service_journey', { p_request_id: id }).abortSignal(signal)
-    if (error?.code === '22P02') return null
+    const { data, error, status } = await requireSupabase().rpc('get_service_journey', { p_request_id: id }).abortSignal(signal)
+    if (error?.code === '22P02' || error?.code === '42501' || status === 403) return null
     if (error) throw asJourneyError(error)
     return data as JourneySnapshot | null
   },
@@ -40,6 +43,9 @@ export const serviceJourney = {
   },
   start(id: string, session: string) {
     return mutate('start_service_journey', { p_request_id: id, p_session_id: session })
+  },
+  heartbeat(id: string, session: string) {
+    return mutate('heartbeat_service_journey', { p_request_id: id, p_session_id: session })
   },
   async publish(id: string, session: string, position: GeoPosition): Promise<boolean> {
     return (await mutate('publish_service_position', {

@@ -16,6 +16,7 @@ import { VectorMap, type VectorMarker } from '@/features/map/components/VectorMa
 import { VectorStyleControl } from '@/features/map/components/VectorStyleControl'
 import type { VectorStyle } from '@/features/map/vectorStyles'
 import { DestinationPicker } from '@/features/serviceJourney/DestinationPicker'
+import { TRACKING } from '@/features/serviceJourney/tracking'
 import { useJourneyFeed } from '@/features/serviceJourney/useJourneyFeed'
 import { useJourneyGps } from '@/features/serviceJourney/useJourneyGps'
 import { useJourneyRoute } from '@/features/serviceJourney/useJourneyRoute'
@@ -126,7 +127,7 @@ function JourneyScreen({ id, userId }: { id: string; userId: string }) {
   const [now, setNow] = useState(Date.now)
   const [editing, setEditing] = useState(false)
   const [style, setStyle] = useState<VectorStyle>('liberty')
-  const [focus, setFocus] = useState<{ point: GeoPoint; zoom: number }>()
+  const [focus, setFocus] = useState<{ point: GeoPoint; zoom: number; worker: boolean }>()
   const [mode, setMode] = useState<TravelMode | null>(null)
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
@@ -138,28 +139,41 @@ function JourneyScreen({ id, userId }: { id: string; userId: string }) {
     ? 'paused' : data?.status ?? 'waiting'
   const terminated = status === 'arrived' || status === 'cancelled' || (!feed.loading && !feed.error && !data)
   const isWorker = data?.worker_id === userId
-  const gps = useJourneyGps(id, feed.refresh, terminated, status === 'paused')
-  const age = data?.last_fix_at ? Math.max(0, (readClock - Date.parse(data.last_fix_at)) / 1000) : null
-  const fresh = status === 'en_route' && age !== null && age < 45 && feed.online && !feed.error
-  const position = fresh ? data?.position ?? null : null
-  const lat = data?.destination?.lat
-  const lng = data?.destination?.lng
+  const gps = useJourneyGps(id, feed.refresh, terminated)
+  const capturedAt = data?.last_fix_at ? Date.parse(data.last_fix_at) : null
+  const age = capturedAt !== null ? Math.max(0, readClock - capturedAt) : null
+  const destinationData = feed.online && feed.validated ? data?.destination : null
+  const position = status === 'en_route' && feed.online && feed.validated ? data?.position ?? null : null
+  const freshPosition = age !== null && age < TRACKING.freshMs ? position : null
+  const lat = terminated ? undefined : destinationData?.lat
+  const lng = terminated ? undefined : destinationData?.lng
   const destination = useMemo(() => typeof lat === 'number' && typeof lng === 'number' ? { lat, lng } : null, [lat, lng])
-  const route = useJourneyRoute(position, destination, mode, id)
-  const lineDistance = position && destination ? haversineDistanceKm(position, destination) : null
+  const route = useJourneyRoute(freshPosition, destination, mode, id)
+  const lineDistance = freshPosition && destination ? haversineDistanceKm(freshPosition, destination) : null
   const workerName = data?.worker_name
   const markers = useMemo(() => {
     const points: VectorMarker[] = []
     if (destination) points.push({ id: 'destination', point: destination, kind: 'destination', label: 'Destino del servicio' })
-    if (position && workerName) points.push({ id: 'worker', point: position, kind: 'worker', label: workerName, text: getInitials(workerName) })
+    if (position && workerName) {
+      points.push({
+        id: 'worker', point: position, kind: 'worker', label: freshPosition ? workerName : `${workerName} · última ubicación conocida`,
+        text: getInitials(workerName),
+        motion: freshPosition && capturedAt !== null
+          ? { capturedAt, lifetimeMs: TRACKING.freshMs, clockOffset: feed.clockOffset }
+          : undefined,
+      })
+    }
     return points
-  }, [destination, position, workerName])
+  }, [destination, position, workerName, freshPosition, capturedAt, feed.clockOffset])
+  const focusTarget = focus?.worker ? position : destination
+  const mapFocus = focus && focusTarget?.lat === focus.point.lat && focusTarget.lng === focus.point.lng ? focus : undefined
   const back = buildServiceRequestPath(id)
 
   return (
     <div className="container-app flex flex-col gap-5 pt-6 md:pt-8">
       <PageHeader title={editing ? 'Seleccionar ubicación del servicio' : 'Seguimiento del servicio'} backTo={back} />
-      {feed.loading && <LoadingState label="Cargando recorrido..." />}
+      {!feed.online && <Alert tone="info">Sin conexión. El seguimiento se consultará al recuperar internet.</Alert>}
+      {feed.loading && feed.online && <LoadingState label="Cargando recorrido..." />}
       {feed.error && (
         <div className="flex flex-col gap-2">
           <Alert>{feed.error}</Alert>
@@ -168,8 +182,8 @@ function JourneyScreen({ id, userId }: { id: string; userId: string }) {
       )}
       {!feed.loading && !feed.error && !data && <Alert tone="info">El seguimiento solo está disponible para las partes de una contratación confirmada.</Alert>}
       {data && (
-        editing && !isWorker && data.destination && status === 'waiting' ? (
-          <DestinationPicker id={id} destination={data.destination}
+        editing && !isWorker && destinationData && status === 'waiting' ? (
+          <DestinationPicker id={id} destination={destinationData}
             onCancel={() => setEditing(false)} onSave={() => { setEditing(false); feed.refresh() }} />
         ) : (
           <>
@@ -177,44 +191,53 @@ function JourneyScreen({ id, userId }: { id: string; userId: string }) {
               <Button size="sm" variant="secondary" leftIcon={LocateFixed} disabled={!position && !destination}
                 onClick={() => {
                   const point = position ?? destination
-                  if (point) setFocus({ point, zoom: 15 })
+                  if (point) setFocus({ point, zoom: 15, worker: Boolean(position) })
                 }}>Centrar mapa</Button>
               <VectorStyleControl value={style} onChange={setStyle} />
             </div>
             <VectorMap label="Mapa del recorrido" className="h-[min(55dvh,33rem)] min-h-72"
               style={style} center={destination ?? DEFAULT_LOCATION.point} zoom={destination ? 15 : 13}
-              markers={markers} focus={focus} fitPair={position && destination ? [position, destination] : undefined}
+              markers={markers} focus={mapFocus} fitPair={position && destination ? [position, destination] : undefined}
               route={route?.status === 'ready' ? route.geometry : undefined} />
             <Card padding="lg">
               <Section id="journey-progress" title={data.worker_name} description={data.category_name}
                 action={<span role="status"><Badge dot tone={STATUS[status].tone}>{STATUS[status].label}</Badge></span>}>
-                {!feed.online && <Alert tone="info">Sin conexión. La ubicación no se está actualizando.</Alert>}
-                {feed.online && !feed.connected && !terminated && (
-                  <p className="text-caption text-ink-muted">Conectando con Realtime. Consultando el estado de forma periódica.</p>
+                {feed.online && !feed.validated && !feed.error && (
+                  <p role="status" className="text-caption text-ink-muted">Verificando el acceso al recorrido…</p>
                 )}
-                {age !== null && <p className="text-label text-ink-muted">Última ubicación actualizada {elapsed(age)}.</p>}
-                {status === 'en_route' && !position && (
+                {feed.online && feed.validated && !feed.connected && !terminated && (
+                  <p role="status" className="text-caption text-ink-muted">Reconectando en tiempo real. Las actualizaciones se consultan de forma periódica.</p>
+                )}
+                {age !== null && feed.validated && <p className="text-label text-ink-muted">Última lectura GPS {elapsed(age / 1000)}.</p>}
+                {freshPosition && (
+                  <p className="text-caption text-ink-muted">
+                    Ubicación reciente · precisión de ±{Math.ceil(freshPosition.accuracy)} m
+                    {freshPosition.accuracy > TRACKING.lowAccuracyMeters ? ' (señal de baja precisión)' : ''}
+                  </p>
+                )}
+                {status === 'en_route' && feed.validated && !freshPosition && (
                   <p role="status" className="text-label font-semibold text-ink">
                     {age === null ? 'Esperando la primera ubicación del trabajador.' : 'Ubicación sin actualizar'}
                   </p>
                 )}
-                {status === 'paused' && age !== null && <p className="text-label font-semibold text-ink">Ubicación sin actualizar</p>}
-                {data.destination && status !== 'cancelled' && (
+                {status === 'paused' && <p className="text-label text-ink-muted">La ubicación ya no se comparte.</p>}
+                {terminated && <p className="text-label text-ink-muted">Seguimiento finalizado.</p>}
+                {destinationData && status !== 'cancelled' && (
                   <div className="flex items-start gap-2 text-label text-ink-muted">
                     <MapPin className="mt-0.5 size-4 shrink-0 text-primary-600" aria-hidden />
                     <div className="min-w-0 wrap-break-word">
-                      <p>{data.destination.address}</p>
-                      {data.destination.reference && <p>{data.destination.reference}</p>}
+                      <p>{destinationData.address}</p>
+                      {destinationData.reference && <p>{destinationData.reference}</p>}
                     </div>
                   </div>
                 )}
-                {!isWorker && status === 'waiting' && data.destination && (
+                {!isWorker && status === 'waiting' && destinationData && (
                   <Button variant="secondary" className="self-start" leftIcon={MapPin} disabled={!feed.online}
                     onClick={() => setEditing(true)}>
                     {destination ? 'Cambiar ubicación del servicio' : 'Seleccionar ubicación del servicio'}
                   </Button>
                 )}
-                {position && destination && (
+                {freshPosition && destination && (
                   <div className="flex flex-col items-start gap-2 text-label text-ink-muted">
                     {journeyRouting && (
                       <Select aria-label="Modo de desplazamiento de la ruta" value={mode ?? ''} onChange={(event) => {

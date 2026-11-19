@@ -20,6 +20,15 @@ export interface VectorMarker {
   avatar?: string
   selected?: boolean
   available?: boolean
+  motion?: { capturedAt: number; lifetimeMs: number; clockOffset: number }
+}
+
+interface MarkerEntry {
+  marker: Marker
+  appearance: string
+  target: GeoPoint
+  capturedAt?: number
+  frame?: number
 }
 
 interface VectorMapProps {
@@ -50,6 +59,43 @@ const MAP_NOTICES = {
   graphics: 'No se pudo iniciar o mantener la visualización gráfica del mapa. Recarga la página para reintentar.',
 }
 type MapStatus = 'loading' | 'ready' | keyof typeof MAP_NOTICES
+
+function moveMarker(entry: MarkerEntry, item: VectorMarker) {
+  const previousCapture = entry.capturedAt
+  entry.capturedAt = item.motion?.capturedAt
+  const previous = entry.target
+  const { point, motion } = item
+  if (previous.lat === point.lat && previous.lng === point.lng && (motion || entry.frame === undefined)) return
+
+  if (entry.frame !== undefined) cancelAnimationFrame(entry.frame)
+  entry.frame = undefined
+  entry.target = point
+  if (!motion || previousCapture === undefined || previousCapture <= Date.now() + motion.clockOffset - motion.lifetimeMs
+    || previousCapture >= motion.capturedAt || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    entry.marker.setLngLat(toLngLat(point))
+    return
+  }
+
+  const from = entry.marker.getLngLat()
+  const longitudeDelta = ((point.lng - from.lng + 540) % 360) - 180
+  const start = performance.now()
+  const step = (now: number) => {
+    const progress = Math.min(1, Math.max(0, (now - start) / 350))
+    if (progress === 1) {
+      entry.marker.setLngLat(toLngLat(point))
+      entry.frame = undefined
+      return
+    }
+    entry.marker.setLngLat([from.lng + longitudeDelta * progress, from.lat + (point.lat - from.lat) * progress])
+    entry.frame = requestAnimationFrame(step)
+  }
+  entry.frame = requestAnimationFrame(step)
+}
+
+function removeMarker(entry: MarkerEntry) {
+  if (entry.frame !== undefined) cancelAnimationFrame(entry.frame)
+  entry.marker.remove()
+}
 
 function renderMarker(element: HTMLElement, item: VectorMarker) {
   element.title = item.label
@@ -98,7 +144,7 @@ export function VectorMap({
   const container = useRef<HTMLDivElement>(null)
   const mapInstance = useRef<LibreMap | null>(null)
   const beginStyleLoad = useRef<(() => void) | null>(null)
-  const registry = useRef(new Map<string, { marker: Marker; appearance: string }>())
+  const registry = useRef(new Map<string, MarkerEntry>())
   const selection = useRef(onSelect)
   const [initial] = useState(() => ({ center, zoom, style }))
   const [map, setMap] = useState<LibreMap | null>(null)
@@ -160,7 +206,7 @@ export function VectorMap({
       window.clearTimeout(loadTimer)
       beginStyleLoad.current = null
       observer.disconnect()
-      markerRegistry.forEach(({ marker }) => marker.remove())
+      markerRegistry.forEach(removeMarker)
       markerRegistry.clear()
       mapInstance.current = null
       instance.remove()
@@ -195,8 +241,7 @@ export function VectorMap({
   }, [map, focus])
 
   useEffect(() => {
-    if (!fitPair) { fitted.current = false; return }
-    if (!map || fitted.current) return
+    if (!map || !fitPair || fitted.current) return
     fitted.current = true
     map.fitBounds([toLngLat(fitPair[0]), toLngLat(fitPair[1])], { padding: 60, maxZoom: 15, duration: 450 })
   }, [map, fitPair])
@@ -213,7 +258,7 @@ export function VectorMap({
     const visible = new Set(markers.map(({ id }) => id))
     for (const [id, entry] of items) {
       if (!visible.has(id)) {
-        entry.marker.remove()
+        removeMarker(entry)
         items.delete(id)
       }
     }
@@ -232,11 +277,10 @@ export function VectorMap({
           element.className = 'pointer-events-none'
         }
         const marker = new Marker({ element }).setLngLat(toLngLat(item.point)).addTo(map)
-        entry = { marker, appearance: '' }
+        entry = { marker, appearance: '', target: item.point }
         items.set(item.id, entry)
       }
-      const { lat, lng } = entry.marker.getLngLat()
-      if (lat !== item.point.lat || lng !== item.point.lng) entry.marker.setLngLat(toLngLat(item.point))
+      moveMarker(entry, item)
       const appearance = JSON.stringify([item.kind, item.label, item.avatar, item.text, item.selected, item.available])
       if (appearance !== entry.appearance) {
         renderMarker(entry.marker.getElement(), item)
